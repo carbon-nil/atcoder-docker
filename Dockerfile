@@ -22,17 +22,28 @@ ENV CPLUS_INCLUDE_PATH=/lib/ac-library
 # Python
 RUN apt update && \
     apt install -y --no-install-recommends \
-        python3.13 \
+        python3 \
         python3-pip \
         python3-setuptools && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir --break-system-packages \
-        numpy==2.1.* \
-        scipy==1.14.* \
-        scikit-learn==1.5.* \
-        networkx==3.4.* \
-        numba==0.60.*
+RUN pip install --no-cache-dir \
+        numpy \
+        scipy \
+        pandas \
+        scikit-learn \
+        networkx \
+        PuLP \
+        bitarray \
+        more-itertools \
+        mpmath \
+        shapely \
+        sortedcontainers \
+        sympy \
+        z3-solver \
+        ac-library-python \
+        acl-cpp-python \
+        cppyy
 ENV PYTHONUNBUFFERED=1
 
 # Rust
