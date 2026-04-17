@@ -1,0 +1,8 @@
+services:
+  atcoder:
+    build: .
+    volumes:
+      - .:/workspace
+    tty: true
+    stdin_open: true
+    image: atcoder-docker
