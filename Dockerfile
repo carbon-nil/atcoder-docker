@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim
+FROM ubuntu:24.04
 
 ENV TZ=Asia/Tokyo \
     DEBIAN_FRONTEND=noninteractive
