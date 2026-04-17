@@ -42,9 +42,9 @@ RUN wget https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.8
     unzip libtorch-shared-with-deps-2.8.0+cpu.zip && \
     rm libtorch-shared-with-deps-2.8.0+cpu.zip
 RUN wget https://github.com/google/or-tools/releases/download/v9.14/or-tools_amd64_ubuntu-24.04_cpp_v9.14.6206.tar.gz && \
-    tar -xf or-tools_amd64_ubuntu-24.04_cpp_v9.14.6206.tar.gz && \
-    cp -r or-tools_amd64_ubuntu-24.04_cpp_v9.14.6206/include/* /usr/local/include/ && \
-    cp -r or-tools_amd64_ubuntu-24.04_cpp_v9.14.6206/lib/* /usr/local/lib/
+    tar -xf or-tools_amd64_Ubuntu-24.04_cpp_v9.14.6206.tar.gz && \
+    cp -r or-tools_amd64_Ubuntu-24.04_cpp_v9.14.6206/include/* /usr/local/include/ && \
+    cp -r or-tools_amd64_Ubuntu-24.04_cpp_v9.14.6206/lib/* /usr/local/lib/
 ENV CXX=g++-14 \
     CC=gcc-14 \
     CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
