@@ -8,7 +8,7 @@ RUN apt update && apt install -y --no-install-recommends \
     && apt clean && rm -rf /var/lib/apt/lists/*
 
 # C++
-RUN apt install -y --no-install-recommends \
+RUN apt update && apt install -y --no-install-recommends \
     build-essential \
     gdb \
     && apt clean && rm -rf /var/lib/apt/lists/*
@@ -16,7 +16,7 @@ RUN git clone --depth 1 https://github.com/atcoder/ac-library.git /lib/ac-librar
 ENV CPLUS_INCLUDE_PATH=/lib/ac-library
 
 # Python
-RUN apt install -y --no-install-recommends \
+RUN apt update && apt install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-setuptools \
@@ -36,10 +36,10 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable --pr
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Library
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt update && apt install -y --no-install-recommends \
     nodejs \
     npm \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt clean && rm -rf /var/lib/apt/lists/*
 RUN pip3 install --no-cache-dir --break-system-packages online-judge-tools
 RUN npm install -g atcoder-cli \
     && npm cache clean --force \
