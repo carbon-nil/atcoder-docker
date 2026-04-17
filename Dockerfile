@@ -4,7 +4,7 @@ ENV TZ=Asia/Tokyo \
     DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && \
-    apt install -y --no-install-recommends time wget unzip git curl ca-certificates && \
+    apt install -y --no-install-recommends time wget unzip git curl ca-certificates cmake && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -54,7 +54,6 @@ ENV CXX=g++-14 \
 # Python
 RUN apt update && \
     apt install -y --no-install-recommends \
-        cmake \
         python3.12 \
         python3-pip \
         python3-setuptools \
