@@ -41,7 +41,7 @@ RUN git clone --recursive --depth 1 https://github.com/microsoft/LightGBM && \
 RUN wget https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.8.0%2Bcpu.zip && \
     unzip libtorch-shared-with-deps-2.8.0+cpu.zip && \
     rm libtorch-shared-with-deps-2.8.0+cpu.zip
-RUN wget https://github.com/google/or-tools/releases/download/v9.15/or-tools_x86_64_Ubuntu-24.04_cpp_v9.14.6206.tar.gz && \
+RUN wget https://github.com/google/or-tools/releases/download/v9.14/or-tools_x86_64_Ubuntu-24.04_cpp_v9.14.6206.tar.gz && \
     tar -xf oor-tools_x86_64_Ubuntu-24.04_cpp_v9.14.6206.tar.gz && \
     cp -r or-tools_x86_64_Ubuntu-24.04_cpp_v9.14.6206/include/* /usr/local/include/ && \
     cp -r or-tools_x86_64_Ubuntu-24.04_cpp_v9.14.6206/lib/* /usr/local/lib/
