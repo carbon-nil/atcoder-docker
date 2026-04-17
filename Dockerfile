@@ -1,34 +1,49 @@
-FROM ubuntu:22.04
+FROM debian:bookworm-slim
 
-ENV TZ=Asia/Tokyo
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+ENV TZ=Asia/Tokyo \
+    DEBIAN_FRONTEND=noninteractive
 
-RUN apt update && apt install -y \
-    build-essential \
-    gdb \
-    python3-pip \
-    nodejs \
-    npm \
-    git \
-    curl \
-    wget \
-    unzip \
-    && apt clean
+RUN apt update && apt install -y --no-install-recommends \
+    time unzip git curl ca-certificates \
+    && apt clean && rm -rf /var/lib/apt/lists/*
 
 # C++
-WORKDIR /opt
-RUN git clone https://github.com/atcoder/ac-library.git
-ENV CPLUS_INCLUDE_PATH /opt/ac-library
+RUN apt install -y --no-install-recommends \
+    build-essential \
+    gdb \
+    && apt clean && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 https://github.com/atcoder/ac-library.git /lib/ac-library
+ENV CPLUS_INCLUDE_PATH /lib/ac-library
+
+# Python
+RUN apt install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-setuptools \
+    && apt clean && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir --break-system-packages \
+    numpy==2.1.* \
+    scipy==1.14.* \
+    scikit-learn==1.5.* \
+    networkx==3.4.* \
+    numba==0.60.*
+ENV PYTHONUNBUFFERED=1
 
 # Rust
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable --profile minimal \
+    && rustup component add rust-src \
+    && rm -rf /root/.rustup/toolchains/*/share/doc /root/.cargo/registry/cache
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# online-judge-tools
-RUN pip install online-judge-tools
+# Library
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nodejs \
+    npm \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN pip3 install --no-cache-dir --break-system-packages online-judge-tools
+RUN npm install -g atcoder-cli \
+    && npm cache clean --force \
+    && acc config default-test-dirname-format test
 
-# atcoder-cli
-RUN npm install -g atcoder-cli
-
-# workspace
+# Workspace
 WORKDIR /workspace
