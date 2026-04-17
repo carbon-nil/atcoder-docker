@@ -12,10 +12,12 @@ RUN apt update && \
 RUN apt update && \
     apt install -y --no-install-recommends \
         build-essential \
-        g++-15 \
+        gcc-14 \
+        g++-14 \
         gdb && \
-    apt clean && rm -rf /var/lib/apt/lists/*
-RUN git clone --depth 1 https://github.com/atcoder/ac-library.git /lib/ac-library
+    apt clean && rm -rf /var/lib/apt/lists/* && \
+    ln -s /usr/bin/gcc-14 /usr/bin/gcc && ln -s /usr/bin/g++-14 /usr/bin/g++
+RUN git clone --depth 1 -b v1.6 https://github.com/atcoder/ac-library.git /lib/ac-library
 ENV CPLUS_INCLUDE_PATH=/lib/ac-library
 
 # Python
