@@ -52,7 +52,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Rust
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable --profile minimal && \
-    rustup component add rust-src && \
+    /root/.cargo/bin/rustup component add rust-src && \
     rm -rf /root/.rustup/toolchains/*/share/doc /root/.cargo/registry/cache
 ENV PATH="/root/.cargo/bin:${PATH}"
 
