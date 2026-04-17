@@ -23,7 +23,7 @@ ENV CPLUS_INCLUDE_PATH=/lib/ac-library
 RUN apt update && \
     apt install -y --no-install-recommends \
         cmake \
-        python3 \
+        python3.12 \
         python3-pip \
         python3-setuptools && \
     apt clean && \
