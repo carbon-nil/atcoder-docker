@@ -13,7 +13,7 @@ RUN apt install -y --no-install-recommends \
     gdb \
     && apt clean && rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 https://github.com/atcoder/ac-library.git /lib/ac-library
-ENV CPLUS_INCLUDE_PATH /lib/ac-library
+ENV CPLUS_INCLUDE_PATH=/lib/ac-library
 
 # Python
 RUN apt install -y --no-install-recommends \
