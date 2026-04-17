@@ -25,7 +25,8 @@ RUN apt update && \
         cmake \
         python3.12 \
         python3-pip \
-        python3-setuptools && \
+        python3-setuptools \
+        python3-dev && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir --break-system-packages \
