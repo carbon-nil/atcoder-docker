@@ -31,20 +31,20 @@ RUN git clone --depth 1 -b v1.6 https://github.com/atcoder/ac-library.git /lib/a
     cp -r range-v3/include/* /usr/local/include/ && \
     git clone --depth 1 https://github.com/martinus/unordered_dense.git && \
     cp unordered_dense/include/ankerl/unordered_dense.h /usr/local/include/
-RUN git clone --depth 1 -b 20240116.2 https://github.com/abseil/abseil-cpp.git && \
+RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
     cd abseil-cpp && mkdir build && cd build && \
     cmake .. -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
     make -j$(nproc) install
 RUN git clone --recursive --depth 1 https://github.com/microsoft/LightGBM && \
     cd LightGBM && mkdir build && cd build && \
     cmake .. && make -j$(nproc)
-RUN wget https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.2.1%2Bcpu.zip && \
-    unzip libtorch-shared-with-deps-2.2.1+cpu.zip && \
-    rm libtorch-shared-with-deps-2.2.1+cpu.zip
-RUN wget https://github.com/google/or-tools/releases/download/v9.8/or-tools_amd64_ubuntu-22.04_cpp_v9.8.3296.tar.gz && \
-    tar -xf or-tools_amd64_ubuntu-22.04_cpp_v9.8.3296.tar.gz && \
-    cp -r or-tools_v9.8.3296/include/* /usr/local/include/ && \
-    cp -r or-tools_v9.8.3296/lib/* /usr/local/lib/
+RUN wget https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.8.0%2Bcpu.zip && \
+    unzip libtorch-shared-with-deps-2.8.0+cpu.zip && \
+    rm libtorch-shared-with-deps-2.8.0+cpu.zip
+RUN wget https://github.com/google/or-tools/releases/download/v9.15/or-tools_x86_64_Ubuntu-24.04_cpp_v9.14.6206.tar.gz && \
+    tar -xf oor-tools_x86_64_Ubuntu-24.04_cpp_v9.14.6206.tar.gz && \
+    cp -r or-tools_x86_64_Ubuntu-24.04_cpp_v9.14.6206/include/* /usr/local/include/ && \
+    cp -r or-tools_x86_64_Ubuntu-24.04_cpp_v9.14.6206/lib/* /usr/local/lib/
 ENV CXX=g++-14 \
     CC=gcc-14 \
     CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
