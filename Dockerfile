@@ -4,7 +4,7 @@ ENV TZ=Asia/Tokyo \
     DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && \
-    apt install -y --no-install-recommends time unzip git curl ca-certificates && \
+    apt install -y --no-install-recommends time wget unzip git curl ca-certificates && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -14,12 +14,42 @@ RUN apt update && \
         build-essential \
         gcc-14 \
         g++-14 \
-        gdb && \
+        gdb \
+        libabsl-dev \
+        libboost-all-dev \
+        libeigen3-dev \
+        libgmp-dev \
+        libz3-dev && \
     apt clean && rm -rf /var/lib/apt/lists/*
-RUN git clone --depth 1 -b v1.6 https://github.com/atcoder/ac-library.git /lib/ac-library
+WORKDIR /opt
+RUN git clone --depth 1 -b v1.6 https://github.com/atcoder/ac-library.git /lib/ac-library && \
+    wget https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz && \
+    tar -xf eigen-3.4.0.tar.gz -C /usr/local/include --strip-components=1 && \
+    git clone --depth 1 https://github.com/arximboldi/immer.git && \
+    cp -r immer/immer /usr/local/include/ && \
+    git clone --depth 1 -b 0.12.0 https://github.com/ericniebler/range-v3.git && \
+    cp -r range-v3/include/* /usr/local/include/ && \
+    git clone --depth 1 https://github.com/martinus/unordered_dense.git && \
+    cp unordered_dense/include/ankerl/unordered_dense.h /usr/local/include/
+RUN git clone --depth 1 -b 20240116.2 https://github.com/abseil/abseil-cpp.git && \
+    cd abseil-cpp && mkdir build && cd build && \
+    cmake .. -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    make -j$(nproc) install
+RUN git clone --recursive --depth 1 https://github.com/microsoft/LightGBM && \
+    cd LightGBM && mkdir build && cd build && \
+    cmake .. && make -j$(nproc)
+RUN wget https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.2.1%2Bcpu.zip && \
+    unzip libtorch-shared-with-deps-2.2.1+cpu.zip && \
+    rm libtorch-shared-with-deps-2.2.1+cpu.zip
+RUN wget https://github.com/google/or-tools/releases/download/v9.8/or-tools_amd64_ubuntu-22.04_cpp_v9.8.3296.tar.gz && \
+    tar -xf or-tools_amd64_ubuntu-22.04_cpp_v9.8.3296.tar.gz && \
+    cp -r or-tools_v9.8.3296/include/* /usr/local/include/ && \
+    cp -r or-tools_v9.8.3296/lib/* /usr/local/lib/
 ENV CXX=g++-14 \
     CC=gcc-14 \
-    CPLUS_INCLUDE_PATH=/lib/ac-library
+    CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
+    LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib" \
+    LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
 
 # Python
 RUN apt update && \
