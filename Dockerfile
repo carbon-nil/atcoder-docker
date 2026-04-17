@@ -20,6 +20,10 @@ WORKDIR /opt
 RUN git clone https://github.com/atcoder/ac-library.git
 ENV CPLUS_INCLUDE_PATH /opt/ac-library
 
+# Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
 # online-judge-tools
 RUN pip install online-judge-tools
 
