@@ -27,7 +27,7 @@ RUN apt update && \
         python3-setuptools && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir \
+RUN pip install --no-cache-dir --break-system-packages \
         numpy \
         scipy \
         pandas \
