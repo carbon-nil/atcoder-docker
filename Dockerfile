@@ -99,3 +99,4 @@ RUN npm install -g atcoder-cli && \
 
 # Workspace
 WORKDIR /workspace
+CMD ["/bin/bash"]
