@@ -17,7 +17,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ "linux/amd64", "linux/arm64" ]
         target: [ "light", "full" ]
 
     steps:
@@ -53,10 +52,11 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
           target: ${{ matrix.target }}
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64,linux/arm64
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.target }}-${{ matrix.platform }}
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
