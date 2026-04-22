@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:24.04 AS base-toolchain
 
 ENV TZ=Asia/Tokyo \
     DEBIAN_FRONTEND=noninteractive
@@ -8,50 +8,22 @@ RUN apt update && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Light version
+FROM base-toolchain AS light
+
 # C++
 RUN apt update && \
     apt install -y --no-install-recommends \
         build-essential \
         gcc-14 \
         g++-14 \
-        gdb \
-        libabsl-dev \
-        libboost-all-dev \
-        libeigen3-dev \
-        libgmp-dev \
-        libz3-dev && \
-    apt clean && rm -rf /var/lib/apt/lists/*
-WORKDIR /opt
-RUN git clone --depth 1 -b v1.6 https://github.com/atcoder/ac-library.git /lib/ac-library && \
-    wget https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz && \
-    tar -xf eigen-3.4.0.tar.gz -C /usr/local/include --strip-components=1 && \
-    git clone --depth 1 https://github.com/arximboldi/immer.git && \
-    cp -r immer/immer /usr/local/include/ && \
-    git clone --depth 1 -b 0.12.0 https://github.com/ericniebler/range-v3.git && \
-    cp -r range-v3/include/* /usr/local/include/ && \
-    git clone --depth 1 https://github.com/martinus/unordered_dense.git && \
-    cp unordered_dense/include/ankerl/unordered_dense.h /usr/local/include/
-RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
-    cd abseil-cpp && mkdir build && cd build && \
-    cmake .. -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
-    make -j$(nproc) install
-RUN git clone --recursive --depth 1 https://github.com/microsoft/LightGBM && \
-    cd LightGBM && mkdir build && cd build && \
-    cmake .. && make -j$(nproc)
-RUN wget https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.8.0%2Bcpu.zip && \
-    unzip libtorch-shared-with-deps-2.8.0+cpu.zip && \
-    rm libtorch-shared-with-deps-2.8.0+cpu.zip
-ARG TARGETARCH
-RUN wget -O or-tools.tar.gz "https://github.com/google/or-tools/releases/download/v9.14/or-tools_${TARGETARCH}_ubuntu-24.04_cpp_v9.14.6206.tar.gz" && \
-    tar -xf or-tools.tar.gz && \
-    cp -r or-tools_*/include/* /usr/local/include/ && \
-    cp -r or-tools_*/lib/* /usr/local/lib/ && \
-    rm -rf or-tools.tar.gz or-tools_*
+        gdb && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 -b v1.6 https://github.com/atcoder/ac-library.git /lib/ac-library
 ENV CXX=g++-14 \
     CC=gcc-14 \
-    CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
-    LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib" \
-    LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
+    CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library"
 
 # Python
 RUN apt update && \
@@ -62,23 +34,6 @@ RUN apt update && \
         python3-dev && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir --break-system-packages \
-        numpy \
-        scipy \
-        pandas \
-        scikit-learn \
-        networkx \
-        PuLP \
-        bitarray \
-        more-itertools \
-        mpmath \
-        shapely \
-        sortedcontainers \
-        sympy \
-        z3-solver \
-        ac-library-python \
-        acl-cpp-python \
-        cppyy
 ENV PYTHONUNBUFFERED=1
 
 # Rust
@@ -99,6 +54,67 @@ RUN npm install -g atcoder-cli && \
     npm cache clean --force && \
     acc config default-test-dirname-format test
 
+# Full version
+FROM light AS full
+WORKDIR /opt
+ARG TARGETARCH
+
+# C++ Library
+RUN apt update && \
+    apt install -y --no-install-recommends \
+        libabsl-dev \
+        libboost-all-dev \
+        libeigen3-dev \
+        libgmp-dev \
+        libz3-dev && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+RUN wget https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz && \
+    tar -xf eigen-3.4.0.tar.gz -C /usr/local/include --strip-components=1 && \
+    git clone --depth 1 https://github.com/arximboldi/immer.git && \
+    cp -r immer/immer /usr/local/include/ && \
+    git clone --depth 1 -b 0.12.0 https://github.com/ericniebler/range-v3.git && \
+    cp -r range-v3/include/* /usr/local/include/ && \
+    git clone --depth 1 https://github.com/martinus/unordered_dense.git && \
+    cp unordered_dense/include/ankerl/unordered_dense.h /usr/local/include/
+RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
+    cd abseil-cpp && mkdir build && cd build && \
+    cmake .. -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    make -j$(nproc) install
+RUN git clone --recursive --depth 1 https://github.com/microsoft/LightGBM && \
+    cd LightGBM && mkdir build && cd build && \
+    cmake .. && make -j$(nproc)
+RUN wget https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.8.0%2Bcpu.zip && \
+    unzip libtorch-shared-with-deps-2.8.0+cpu.zip && \
+    rm libtorch-shared-with-deps-2.8.0+cpu.zip
+RUN wget -O or-tools.tar.gz "https://github.com/google/or-tools/releases/download/v9.14/or-tools_${TARGETARCH}_ubuntu-24.04_cpp_v9.14.6206.tar.gz" && \
+    tar -xf or-tools.tar.gz && \
+    cp -r or-tools_*/include/* /usr/local/include/ && \
+    cp -r or-tools_*/lib/* /usr/local/lib/ && \
+    rm -rf or-tools.tar.gz or-tools_*
+ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
+    LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib" \
+    LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
+
+# Python Library
+RUN pip install --no-cache-dir --break-system-packages \
+        numpy \
+        scipy \
+        pandas \
+        scikit-learn \
+        networkx \
+        PuLP \
+        bitarray \
+        more-itertools \
+        mpmath \
+        shapely \
+        sortedcontainers \
+        sympy \
+        z3-solver \
+        ac-library-python \
+        acl-cpp-python \
+        cppyy
+
 # Workspace
 WORKDIR /workspace
+
 CMD ["/bin/bash"]
