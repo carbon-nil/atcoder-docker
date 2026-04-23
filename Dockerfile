@@ -57,7 +57,6 @@ RUN npm install -g atcoder-cli && \
 # Full version
 FROM light AS full
 WORKDIR /opt
-ARG TARGETARCH
 
 # C++ Library
 RUN apt update && \
@@ -86,7 +85,7 @@ RUN git clone --recursive --depth 1 https://github.com/microsoft/LightGBM && \
 RUN wget https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.8.0%2Bcpu.zip && \
     unzip libtorch-shared-with-deps-2.8.0+cpu.zip && \
     rm libtorch-shared-with-deps-2.8.0+cpu.zip
-RUN wget -O or-tools.tar.gz "https://github.com/google/or-tools/releases/download/v9.14/or-tools_${TARGETARCH}_ubuntu-24.04_cpp_v9.14.6206.tar.gz" && \
+RUN wget -O or-tools.tar.gz "https://github.com/google/or-tools/releases/download/v9.14/or-tools_amd64_ubuntu-24.04_cpp_v9.14.6206.tar.gz" && \
     tar -xf or-tools.tar.gz && \
     cp -r or-tools_*/include/* /usr/local/include/ && \
     cp -r or-tools_*/lib/* /usr/local/lib/ && \
