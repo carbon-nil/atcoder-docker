@@ -91,7 +91,6 @@ RUN wget -O or-tools.tar.gz "https://github.com/google/or-tools/releases/downloa
     cp -r or-tools_*/lib/* /usr/local/lib/ && \
     rm -rf or-tools.tar.gz or-tools_*
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
-    LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib" \
     LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
 
 # Python Library
