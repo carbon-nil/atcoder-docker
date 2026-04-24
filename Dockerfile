@@ -54,6 +54,24 @@ RUN npm install -g atcoder-cli && \
     npm cache clean --force && \
     acc config default-test-dirname-format test
 
+# Command
+RUN echo 'ojt() { \
+    if [ -f main.cpp ]; then \
+        g++ -O2 main.cpp -o a.out && oj t -c "./a.out"; \
+    elif [ -f main.py ]; then \
+        oj t -c "python3 main.py"; \
+    elif [ -f main.rs ]; then \
+        if [ -f Cargo.toml ]; then \
+            cargo build --release && oj t -c "./target/release/$(basename $(pwd))"; \
+        else \
+            rustc -O main.rs -o a.out && oj t -c "./a.out"; \
+        fi \
+    else \
+        echo "Error: main.cpp, main.py, or main.rs not found."; \
+        return 1; \
+    fi \
+}' >> /root/.bashrc
+
 # Full version
 FROM light AS full
 WORKDIR /opt
