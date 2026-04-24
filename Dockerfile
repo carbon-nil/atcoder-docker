@@ -49,7 +49,7 @@ RUN apt update && \
         npm && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
-RUN pip3 install --no-cache-dir --break-system-packages online-judge-tools
+RUN pip3 install --no-cache-dir --break-system-packages online-judge-tools aclogin
 RUN npm install -g atcoder-cli && \
     npm cache clean --force && \
     acc config default-test-dirname-format test
