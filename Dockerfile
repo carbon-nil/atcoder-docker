@@ -1,4 +1,4 @@
-FROM ubuntu:24.04 AS base-toolchain
+FROM ubuntu:26.04 AS base-toolchain
 
 ENV TZ=Asia/Tokyo \
     DEBIAN_FRONTEND=noninteractive
