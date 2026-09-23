@@ -139,10 +139,11 @@ RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git &
     cmake .. -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
     make -j$(nproc) install
 # リリースの tarball は submodule (eigen など) を同梱しているので、GitLab から取らずに済む
+# tarball の Python パッケージ lightgbm/ が CLI の出力先と衝突するので、AtCoder と同じくライブラリだけをビルドする
 RUN wget -O lightgbm.tar.gz https://github.com/microsoft/LightGBM/releases/download/v4.6.0/lightgbm-4.6.0.tar.gz && \
     mkdir LightGBM && tar -xf lightgbm.tar.gz -C LightGBM --strip-components=1 && rm lightgbm.tar.gz && \
     cd LightGBM && mkdir build && cd build && \
-    cmake .. && make -j$(nproc)
+    cmake -DBUILD_CLI=OFF .. && make -j$(nproc)
 # arm64 向けの libtorch は配布されていないので、torch の wheel から include と lib を取り出す
 # (wheel の lib は rpath で ../../torch.libs を参照するので、/opt に展開してから libtorch に改名する)
 RUN case "$TARGETARCH" in \
