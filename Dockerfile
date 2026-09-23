@@ -114,6 +114,17 @@ fi
 EOF
 RUN chmod +x /usr/local/bin/ojt
 
+# cppyy-cling wheel (linux/arm64 用。.github/workflows/cppyy-wheel.yml が Release に置く)
+# pip の隔離ビルドは最新の cmake (4 系) を入れて設定に失敗するので、隔離せずにシステムの cmake (3.28) を使う
+# 同梱の LLVM は GCC 14.3 以降だと C++20 でコンパイルできない (root-project/root#18939) ので、g++-13 でビルドする
+FROM light AS cppyy-cling-build
+RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools wheel && \
+    CC=gcc-13 CXX=g++-13 python3.13 -m pip wheel --no-cache-dir --no-deps --no-build-isolation \
+        cppyy-cling==6.32.8 -w /wheels
+
+FROM scratch AS cppyy-cling-wheel
+COPY --from=cppyy-cling-build /wheels /
+
 # Full version
 FROM light AS full
 ARG TARGETARCH
@@ -187,12 +198,14 @@ RUN python3.13 -m pip install --no-cache-dir --break-system-packages \
         z3-solver \
         ac-library-python \
         acl-cpp-python
-# cppyy は AtCoder と同じ組み合わせに固定する。arm64 には cppyy-cling の wheel がなくソースからビルドになるが、
-# pip の隔離ビルドは最新の cmake (4 系) を入れて設定に失敗するので、隔離せずにシステムの cmake (3.28) を使う
-# 同梱の LLVM は GCC 14.3 以降だと C++20 でコンパイルできない (root-project/root#18939) ので、ビルドだけ g++-13 で行う
+# cppyy は AtCoder と同じ組み合わせに固定する。PyPI に arm64 の cppyy-cling wheel はないので、
+# cppyy-cling-wheel ステージで作って Release に置いたもの (.github/workflows/cppyy-wheel.yml) を使う。
+# 見つからなければ cppyy-cling-build ステージと同じ条件でソースからビルドする (40 分ほどかかる)
 RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools wheel && \
     for p in cppyy-cling==6.32.8 cppyy-backend==1.15.3 cppyy==3.5.0; do \
-        CC=gcc-13 CXX=g++-13 python3.13 -m pip install --no-cache-dir --break-system-packages --no-build-isolation "$p" || exit 1; \
+        CC=gcc-13 CXX=g++-13 python3.13 -m pip install --no-cache-dir --break-system-packages --no-build-isolation \
+            --prefer-binary --find-links https://github.com/carbon-nil/atcoder-docker/releases/expanded_assets/cppyy-cling-6.32.8 \
+            "$p" || exit 1; \
     done && \
     python3.13 -c "import cppyy; cppyy.cppdef('int one() { return 1; }'); assert cppyy.gbl.one() == 1"
 
