@@ -186,8 +186,14 @@ RUN python3.13 -m pip install --no-cache-dir --break-system-packages \
         sympy \
         z3-solver \
         ac-library-python \
-        acl-cpp-python \
-        cppyy
+        acl-cpp-python
+# cppyy は AtCoder と同じ組み合わせに固定する。arm64 には cppyy-cling の wheel がなくソースからビルドになるが、
+# pip の隔離ビルドは最新の cmake (4 系) を入れて設定に失敗するので、隔離せずにシステムの cmake (3.28) を使う
+RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools wheel && \
+    for p in cppyy-cling==6.32.8 cppyy-backend==1.15.3 cppyy==3.5.0; do \
+        python3.13 -m pip install --no-cache-dir --break-system-packages --no-build-isolation "$p" || exit 1; \
+    done && \
+    python3.13 -c "import cppyy; cppyy.cppdef('int one() { return 1; }'); assert cppyy.gbl.one() == 1"
 
 # Rust Library
 # AtCoder と同じ Cargo.toml / Cargo.lock (rust-lang-ja/atcoder-proposal、AtCoder のインストールスクリプトと同じコミット) で依存をビルドしておく
