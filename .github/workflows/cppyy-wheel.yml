@@ -1,0 +1,31 @@
+name: Build cppyy-cling wheel
+# PyPI に linux/arm64 の cppyy-cling wheel がないので、一度だけビルドして Release に置く。
+# full イメージの arm64 ビルドはこれを使う。cppyy-cling のバージョンを変えたときに手動で実行する
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    env:
+      TAG: cppyy-cling-6.32.8
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup docker buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build wheel
+        run: docker buildx build --target cppyy-cling-wheel --output type=local,dest=wheels .
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 ||
+            gh release create "$TAG" --title "$TAG (linux/arm64 wheel)" \
+              --notes "cppyy-cling wheel for linux/arm64, built by .github/workflows/cppyy-wheel.yml for the full image."
+          gh release upload "$TAG" wheels/*.whl --clobber

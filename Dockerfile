@@ -114,6 +114,17 @@ fi
 EOF
 RUN chmod +x /usr/local/bin/ojt
 
+# cppyy-cling wheel (linux/arm64 用。.github/workflows/cppyy-wheel.yml が Release に置く)
+# pip の隔離ビルドは最新の cmake (4 系) を入れて設定に失敗するので、隔離せずにシステムの cmake (3.28) を使う
+# 同梱の LLVM は GCC 14.3 以降だと C++20 でコンパイルできない (root-project/root#18939) ので、g++-13 でビルドする
+FROM light AS cppyy-cling-build
+RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools wheel && \
+    CC=gcc-13 CXX=g++-13 python3.13 -m pip wheel --no-cache-dir --no-deps --no-build-isolation \
+        cppyy-cling==6.32.8 -w /wheels
+
+FROM scratch AS cppyy-cling-wheel
+COPY --from=cppyy-cling-build /wheels /
+
 # Full version
 FROM light AS full
 ARG TARGETARCH
@@ -128,9 +139,7 @@ RUN apt update && \
         libgmp-dev \
         libz3-dev && \
     apt clean && rm -rf /var/lib/apt/lists/*
-RUN wget https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz && \
-    tar -xf eigen-3.4.0.tar.gz -C /usr/local/include --strip-components=1 && \
-    git clone --depth 1 https://github.com/arximboldi/immer.git && \
+RUN git clone --depth 1 https://github.com/arximboldi/immer.git && \
     cp -r immer/immer /usr/local/include/ && \
     git clone --depth 1 -b 0.12.0 https://github.com/ericniebler/range-v3.git && \
     cp -r range-v3/include/* /usr/local/include/ && \
@@ -140,9 +149,12 @@ RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git &
     cd abseil-cpp && mkdir build && cd build && \
     cmake .. -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
     make -j$(nproc) install
-RUN git clone --recursive --depth 1 https://github.com/microsoft/LightGBM && \
+# リリースの tarball は submodule (eigen など) を同梱しているので、GitLab から取らずに済む
+# tarball の Python パッケージ lightgbm/ が CLI の出力先と衝突するので、AtCoder と同じくライブラリだけをビルドする
+RUN wget -O lightgbm.tar.gz https://github.com/microsoft/LightGBM/releases/download/v4.6.0/lightgbm-4.6.0.tar.gz && \
+    mkdir LightGBM && tar -xf lightgbm.tar.gz -C LightGBM --strip-components=1 && rm lightgbm.tar.gz && \
     cd LightGBM && mkdir build && cd build && \
-    cmake .. && make -j$(nproc)
+    cmake -DBUILD_CLI=OFF .. && make -j$(nproc)
 # arm64 向けの libtorch は配布されていないので、torch の wheel から include と lib を取り出す
 # (wheel の lib は rpath で ../../torch.libs を参照するので、/opt に展開してから libtorch に改名する)
 RUN case "$TARGETARCH" in \
@@ -166,7 +178,7 @@ RUN case "$TARGETARCH" in \
     cp -r or-tools_*/include/* /usr/local/include/ && \
     cp -r or-tools_*/lib*/* /usr/local/lib/ && \
     rm -rf or-tools.tar.gz or-tools_*
-ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
+ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/usr/include/eigen3:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
     LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
 
 # Python Library
@@ -185,89 +197,27 @@ RUN python3.13 -m pip install --no-cache-dir --break-system-packages \
         sympy \
         z3-solver \
         ac-library-python \
-        acl-cpp-python \
-        cppyy
+        acl-cpp-python
+# cppyy は AtCoder と同じ組み合わせに固定する。PyPI に arm64 の cppyy-cling wheel はないので、
+# cppyy-cling-wheel ステージで作って Release に置いたもの (.github/workflows/cppyy-wheel.yml) を使う。
+# 見つからなければ cppyy-cling-build ステージと同じ条件でソースからビルドする (40 分ほどかかる)
+RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools wheel && \
+    for p in cppyy-cling==6.32.8 cppyy-backend==1.15.3 cppyy==3.5.0; do \
+        CC=gcc-13 CXX=g++-13 python3.13 -m pip install --no-cache-dir --break-system-packages --no-build-isolation \
+            --prefer-binary --find-links https://github.com/carbon-nil/atcoder-docker/releases/expanded_assets/cppyy-cling-6.32.8 \
+            "$p" || exit 1; \
+    done && \
+    python3.13 -c "import cppyy; cppyy.cppdef('int one() { return 1; }'); assert cppyy.gbl.one() == 1"
 
 # Rust Library
-RUN cargo new --lib /opt/rust-warmup
+# AtCoder と同じ Cargo.toml / Cargo.lock (rust-lang-ja/atcoder-proposal、AtCoder のインストールスクリプトと同じコミット) で依存をビルドしておく
 WORKDIR /opt/rust-warmup
-COPY <<EOF Cargo.toml
-[package]
-name = "rust-warmup"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-ac-library-rs = "0.2.0"
-alga = "0.9.3"
-amplify = "4.9.0"
-amplify_derive = "4.0.1"
-amplify_num = "0.5.3"
-argio = "0.2.0"
-ascii = "1.1.0"
-az = "1.2.1"
-bitset-fixed = "0.1.0"
-bitvec = "1.0.1"
-bstr = "1.12.0"
-btreemultimap = "0.1.1"
-counter = "0.7.0"
-easy-ext = "1.0.2"
-either = "1.15.0"
-fixedbitset = "0.5.7"
-getrandom = "0.3.3"
-glidesort = "0.1.2"
-hashbag = "0.1.12"
-im-rc = "15.1.0"
-indexing = "0.4.1"
-indexmap = "2.11.0"
-itertools = "0.14.0"
-itertools-num = "0.1.3"
-lazy_static = "1.5.0"
-libm = "0.2.15"
-maplit = "1.0.2"
-memoise = "0.3.2"
-multimap = "0.10.1"
-multiversion = "0.8.0"
-nalgebra = "0.34.0"
-ndarray = "0.16.1"
-num = "0.4.3"
-num-bigint = "0.4.6"
-num-complex = "0.4.6"
-num-derive = "0.4.2"
-num-integer = "0.1.46"
-num-iter = "0.1.45"
-num-rational = "0.4.2"
-num-traits = "0.2.19"
-omniswap = "0.1.0"
-once_cell = "1.21.3"
-ordered-float = "5.0.0"
-pathfinding = "4.14.0"
-permutohedron = "0.2.4"
-petgraph = "0.8.2"
-primal = "0.3.3"
-proconio = "0.5.0"
-rand = "0.9.2"
-rand_chacha = "0.9.0"
-rand_core = "0.9.3"
-rand_distr = "0.5.1"
-rand_hc = "0.4.0"
-rand_pcg = "0.9.0"
-rand_xorshift = "0.4.0"
-rand_xoshiro = "0.7.0"
-recur-fn = "2.2.0"
-regex = "1.11.2"
-rpds = "1.1.1"
-rustc-hash = "2.1.1"
-smallvec = "1.15.1"
-static_assertions = "1.1.0"
-statrs = "0.18.0"
-superslice = "1.0.0"
-tap = "1.0.1"
-text_io = "0.1.13"
-thiserror = "2.0.16"
-varisat = "0.2.2"
-EOF
-RUN cargo build --release && rm -rf /opt/rust-warmup
+RUN curl -fsS --remote-name-all \
+        https://raw.githubusercontent.com/rust-lang-ja/atcoder-proposal/7a724cdf84202ce3bef84527676e2c398bca7b6e/Cargo.toml \
+        https://raw.githubusercontent.com/rust-lang-ja/atcoder-proposal/7a724cdf84202ce3bef84527676e2c398bca7b6e/Cargo.lock && \
+    mkdir src && echo 'fn main() {}' > src/main.rs && \
+    cargo build --release --locked && \
+    rm -rf /opt/rust-warmup
 
 # Workspace
 WORKDIR /workspace
