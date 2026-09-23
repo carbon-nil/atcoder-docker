@@ -116,6 +116,7 @@ RUN chmod +x /usr/local/bin/ojt
 
 # Full version
 FROM light AS full
+ARG TARGETARCH
 WORKDIR /opt
 
 # C++ Library
@@ -142,13 +143,28 @@ RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git &
 RUN git clone --recursive --depth 1 https://github.com/microsoft/LightGBM && \
     cd LightGBM && mkdir build && cd build && \
     cmake .. && make -j$(nproc)
-RUN wget https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.8.0%2Bcpu.zip && \
-    unzip libtorch-shared-with-deps-2.8.0+cpu.zip && \
-    rm libtorch-shared-with-deps-2.8.0+cpu.zip
-RUN wget -O or-tools.tar.gz "https://github.com/google/or-tools/releases/download/v9.14/or-tools_amd64_ubuntu-24.04_cpp_v9.14.6206.tar.gz" && \
+# arm64 向けの libtorch は配布されていないので、torch の wheel から include と lib を取り出す
+# (wheel の lib は rpath で ../../torch.libs を参照するので、/opt に展開してから libtorch に改名する)
+RUN case "$TARGETARCH" in \
+        amd64) \
+            wget -O libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.8.0%2Bcpu.zip && \
+            unzip -q libtorch.zip ;; \
+        arm64) \
+            wget -O libtorch.zip https://download.pytorch.org/whl/cpu/torch-2.8.0%2Bcpu-cp313-cp313-manylinux_2_28_aarch64.whl && \
+            unzip -q libtorch.zip 'torch/include/*' 'torch/lib/*' 'torch/share/*' 'torch.libs/*' && \
+            mv torch libtorch ;; \
+        *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac && \
+    rm libtorch.zip
+RUN case "$TARGETARCH" in \
+        amd64) or_tools=or-tools_amd64_ubuntu-24.04_cpp_v9.14.6206 ;; \
+        arm64) or_tools=or-tools_aarch64_AlmaLinux-8.10_cpp_v9.14.6206 ;; \
+        *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac && \
+    wget -O or-tools.tar.gz "https://github.com/google/or-tools/releases/download/v9.14/${or_tools}.tar.gz" && \
     tar -xf or-tools.tar.gz && \
     cp -r or-tools_*/include/* /usr/local/include/ && \
-    cp -r or-tools_*/lib/* /usr/local/lib/ && \
+    cp -r or-tools_*/lib*/* /usr/local/lib/ && \
     rm -rf or-tools.tar.gz or-tools_*
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
     LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
