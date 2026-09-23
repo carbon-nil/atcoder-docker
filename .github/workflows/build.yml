@@ -4,37 +4,128 @@ on:
     tags: [ "v*" ]
   workflow_dispatch:
 
+env:
+  REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
+  # 手動実行はビルドの確認だけにし、push は v* タグのときだけ
+  PUSH: ${{ startsWith(github.ref, 'refs/tags/v') }}
+
 jobs:
+  # amd64 は ubuntu-24.04、arm64 は ubuntu-24.04-arm のネイティブ runner で並列にビルドし、digest だけを push する
   build:
     strategy:
       fail-fast: false
       matrix:
         target: [ "light", "full" ]
-    # amd64 は ubuntu-24.04、arm64 は ubuntu-24.04-arm のネイティブ runner で並列にビルドし、manifest をまとめる
-    uses: docker/github-builder/.github/workflows/build.yml@v1
+        platform: [ "linux/amd64", "linux/arm64" ]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
-      id-token: write
-    with:
-      output: image
-      # 手動実行はビルドの確認だけにし、push は v* タグのときだけ
-      push: ${{ startsWith(github.ref, 'refs/tags/v') }}
-      target: ${{ matrix.target }}
-      platforms: linux/amd64,linux/arm64
-      job-name-prefix: ${{ matrix.target }}
-      cache: true
-      cache-mode: max
-      meta-images: ghcr.io/${{ github.repository }}
-      meta-flavor: |
-        latest=false
-      meta-tags: |
-        type=semver,pattern={{version}},suffix=-${{ matrix.target }}
-        type=raw,value=latest,suffix=-${{ matrix.target }}
-        type=semver,pattern={{version}},enable=${{ matrix.target == 'light' }}
-        type=raw,value=latest,enable=${{ matrix.target == 'light' }}
-    secrets:
-      registry-auths: |
-        - registry: ghcr.io
+    steps:
+      - name: Prepare
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_ENV"
+
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup docker buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GitHub container registry
+        if: env.PUSH == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: ${{ matrix.platform }}
+          # provenance / SBOM を付けると ghcr で unknown/unknown のエントリとして表示されるので付けない
+          provenance: false
+          sbom: false
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ env.PUSH }}
+          cache-from: type=gha,scope=${{ matrix.target }}-${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}-${{ env.PLATFORM_PAIR }}
+
+      - name: Export digest
+        if: env.PUSH == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        if: env.PUSH == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.target }}-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # 各プラットフォームの digest を 1 つの manifest list にまとめてタグを付ける
+  merge:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    strategy:
+      matrix:
+        target: [ "light", "full" ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ matrix.target }}-*
+          merge-multiple: true
+
+      - name: Login to GitHub container registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup docker buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Extract docker metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          flavor: |
+            latest=false
+          tags: |
+            type=semver,pattern={{version}},suffix=-${{ matrix.target }}
+            type=raw,value=latest,suffix=-${{ matrix.target }}
+            type=semver,pattern={{version}},enable=${{ matrix.target == 'light' }}
+            type=raw,value=latest,enable=${{ matrix.target == 'light' }}
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf "$REGISTRY_IMAGE@sha256:%s " *)
+
+      - name: Inspect image
+        env:
+          TARGET: ${{ matrix.target }}
+        run: docker buildx imagetools inspect "$REGISTRY_IMAGE:latest-$TARGET"
