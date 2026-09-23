@@ -189,9 +189,10 @@ RUN python3.13 -m pip install --no-cache-dir --break-system-packages \
         acl-cpp-python
 # cppyy は AtCoder と同じ組み合わせに固定する。arm64 には cppyy-cling の wheel がなくソースからビルドになるが、
 # pip の隔離ビルドは最新の cmake (4 系) を入れて設定に失敗するので、隔離せずにシステムの cmake (3.28) を使う
+# 同梱の LLVM は GCC 14.3 以降だと C++20 でコンパイルできない (root-project/root#18939) ので、ビルドだけ g++-13 で行う
 RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools wheel && \
     for p in cppyy-cling==6.32.8 cppyy-backend==1.15.3 cppyy==3.5.0; do \
-        python3.13 -m pip install --no-cache-dir --break-system-packages --no-build-isolation "$p" || exit 1; \
+        CC=gcc-13 CXX=g++-13 python3.13 -m pip install --no-cache-dir --break-system-packages --no-build-isolation "$p" || exit 1; \
     done && \
     python3.13 -c "import cppyy; cppyy.cppdef('int one() { return 1; }'); assert cppyy.gbl.one() == 1"
 
