@@ -107,6 +107,31 @@ RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools 
 FROM scratch AS cppyy-cling-wheel
 COPY --from=cppyy-cling-build /wheels /
 
+# PyPI に PyPy 3.11 用の scipy、pandas、scikit-learn、shapely、bitarray、cppyy、acl-cpp-python の wheel はないので、
+# .github/workflows/pypy-wheels.yml で一度だけビルドして Release に置き、full イメージで使う
+FROM light AS pypy-wheels-build
+RUN apt update && \
+    apt install -y --no-install-recommends \
+        gfortran \
+        libopenblas-dev \
+        liblapack-dev \
+        pkg-config \
+        libgeos-dev && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+COPY python/pypy-requirements.txt /tmp/pypy-requirements.txt
+RUN grep -v '^cppyy' /tmp/pypy-requirements.txt > /tmp/pypy-requirements-no-cppyy.txt && \
+    pypy3 -m pip wheel --no-cache-dir -r /tmp/pypy-requirements-no-cppyy.txt -w /wheels --prefer-binary
+# cppyy-backend の隔離ビルドは古い cppyy-cling (6.30.0) をソースからビルドしようとして失敗するので、
+# CPython と同じく cppyy-cling 6.32.8 を先に入れ、backend と cppyy は隔離せずに g++-13 でビルドする
+RUN pypy3 -m pip install --no-cache-dir --break-system-packages --prefer-binary \
+        --find-links https://github.com/carbon-nil/atcoder-docker/releases/expanded_assets/cppyy-cling-6.32.8 \
+        setuptools wheel cppyy-cling==6.32.8 && \
+    CC=gcc-13 CXX=g++-13 pypy3 -m pip wheel --no-cache-dir --no-deps --no-build-isolation \
+        cppyy-backend==1.15.3 cppyy==3.5.0 -w /wheels
+
+FROM scratch AS pypy-wheels
+COPY --from=pypy-wheels-build /wheels /
+
 # Full version
 FROM light AS full
 ARG TARGETARCH
