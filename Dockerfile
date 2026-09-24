@@ -160,8 +160,10 @@ RUN case "$TARGETARCH" in \
     cp -r or-tools_*/include/* /usr/local/include/ && \
     cp -r or-tools_*/lib*/* /usr/local/lib/ && \
     rm -rf or-tools.tar.gz or-tools_*
+# /opt/libtorch/lib は LD_LIBRARY_PATH に入れない (amd64 の libtorch の libtorch_python.so が Python の torch の import を壊す)。
+# C++ から使うときは -L/opt/libtorch/lib -Wl,-R/opt/libtorch/lib でリンクする
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/usr/include/eigen3:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
-    LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
+    LD_LIBRARY_PATH="/usr/local/lib"
 
 # Python Library
 # AtCoder と同じバージョンに固定する (python/cpython-freeze.txt)。torch と numba も AtCoder と同じ入れ方にする
