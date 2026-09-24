@@ -187,7 +187,9 @@ def main() -> None:
             shutil.copy(tmpl / f, d / f)
         if "cmd" in spec:
             subprocess.run(["bash", "-c", spec["cmd"]], cwd=d, check=True)
-        subprocess.run(["oj", "d", url], cwd=d, check=True)
+        # インタラクティブ問題などサンプルの無い問題は、acc new と同じく警告して続ける
+        if subprocess.run(["oj", "d", url], cwd=d).returncode != 0:
+            print(f"warning {d}: サンプルを取得できなかった ({url})")
         time.sleep(1)  # AtCoder への連続アクセスを避ける
 
     info = contest["info"]
