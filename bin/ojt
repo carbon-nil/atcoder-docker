@@ -17,7 +17,8 @@ elif [ -f main.rs ]; then
     if [ -f Cargo.toml ]; then
         cargo build --release && oj t -c "./target/release/$(basename "$PWD")" "$@"
     else
-        rustc -O main.rs -o a.out && oj t -c ./a.out "$@"
+        # cargo の設定 (--cfg atcoder) は rustc を直接呼ぶと効かないので、AtCoder と同じ edition とともに渡す
+        rustc --edition 2024 -O --cfg atcoder main.rs -o a.out && oj t -c ./a.out "$@"
     fi
 else
     echo "Error: main.cpp, main.py, or main.rs not found." >&2
