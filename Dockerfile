@@ -160,26 +160,27 @@ RUN case "$TARGETARCH" in \
     cp -r or-tools_*/include/* /usr/local/include/ && \
     cp -r or-tools_*/lib*/* /usr/local/lib/ && \
     rm -rf or-tools.tar.gz or-tools_*
+# /opt/libtorch/lib は LD_LIBRARY_PATH に入れない (amd64 の libtorch の libtorch_python.so が Python の torch の import を壊す)。
+# C++ から使うときは -L/opt/libtorch/lib -Wl,-R/opt/libtorch/lib でリンクする
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/usr/include/eigen3:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
-    LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
+    LD_LIBRARY_PATH="/usr/local/lib"
 
 # Python Library
-RUN python3.13 -m pip install --no-cache-dir --break-system-packages \
-        numpy \
-        scipy \
-        pandas \
-        scikit-learn \
-        networkx \
-        PuLP \
-        bitarray \
-        more-itertools \
-        mpmath \
-        shapely \
-        sortedcontainers \
-        sympy \
-        z3-solver \
-        ac-library-python \
-        acl-cpp-python
+# AtCoder と同じバージョンに固定する (python/cpython-freeze.txt)。torch と numba も AtCoder と同じ入れ方にする
+# (numba は CUDA 部分を外してソースからビルドする)。arm64 の gmpy2 は wheel がないので、MPFR と MPC を入れてビルドする
+RUN apt update && \
+    apt install -y --no-install-recommends libmpfr-dev libmpc-dev && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+COPY python/cpython-freeze.txt /tmp/cpython-freeze.txt
+RUN python3.13 -m pip install --no-cache-dir --break-system-packages -r /tmp/cpython-freeze.txt && \
+    python3.13 -m pip install --no-cache-dir --break-system-packages torch==2.8.0+cpu --index-url https://download.pytorch.org/whl/cpu && \
+    wget -q -O numba.tar.gz https://files.pythonhosted.org/packages/1c/a0/e21f57604304aa03ebb8e098429222722ad99176a4f979d34af1d1ee80da/numba-0.61.2.tar.gz && \
+    mkdir numba && tar -C numba --strip-components=1 -xf numba.tar.gz && \
+    sed -i 's/ext_cuda_extras, //' numba/setup.py && rm -rf numba/numba/cuda && \
+    python3.13 -m pip install --no-cache-dir --break-system-packages ./numba && \
+    rm -rf numba numba.tar.gz /tmp/cpython-freeze.txt && \
+    python3.13 -c "import numba, torch, gmpy2, polars, lightgbm, ortools, sklearn, atcoder; \
+assert numba.njit(lambda n: n * 2)(21) == 42 and torch.ones(2).sum().item() == 2"
 # cppyy は AtCoder と同じ組み合わせに固定する。PyPI に arm64 の cppyy-cling wheel はないので、
 # cppyy-cling-wheel ステージで作って Release に置いたもの (.github/workflows/cppyy-wheel.yml) を使う。
 # 見つからなければ cppyy-cling-build ステージと同じ条件でソースからビルドする (40 分ほどかかる)
