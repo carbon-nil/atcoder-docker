@@ -8,12 +8,8 @@ RUN apt update && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Light version
-FROM base-toolchain AS light
+FROM base-toolchain AS gcc
 
-ARG TARGETARCH
-
-# C++
 # GCC 15.2.0 は Ubuntu 24.04 向けにビルドされた toolchain PPA から入れる (AtCoder も 24.04 上でビルドしている)
 RUN apt update && \
     apt install -y --no-install-recommends software-properties-common && \
@@ -27,10 +23,16 @@ RUN apt update && \
     ln -s /usr/bin/g++-15 /usr/local/bin/g++ && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
+ENV CXX=g++ CC=gcc
+
+# Light version
+FROM gcc AS light
+
+ARG TARGETARCH
+
+# C++
 RUN git clone --depth 1 -b v1.6 https://github.com/atcoder/ac-library.git /lib/ac-library
-ENV CXX=g++ \
-    CC=gcc \
-    CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library"
+ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library"
 
 # Python
 RUN apt update && \
@@ -107,6 +109,32 @@ RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools 
 FROM scratch AS cppyy-cling-wheel
 COPY --from=cppyy-cling-build /wheels /
 
+# arm64 の配布済み OR-Tools は AlmaLinux ビルドで libstdc++ のシンボルを再公開し、LibTorch と併用すると落ちる。
+# AtCoder と同じくソースからビルドし、full の残りとは独立してキャッシュできるよう別ステージにする。
+FROM gcc AS cxx-libs-build
+WORKDIR /tmp/cxx
+
+RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
+    cd abseil-cpp && \
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=20 \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DABSL_ENABLE_INSTALL=ON \
+        -DABSL_PROPAGATE_CXX_STD=ON -DCMAKE_INSTALL_PREFIX=/opt/cxx && \
+    cmake --build build -j"$(nproc)" --target install && \
+    cd /tmp/cxx && rm -rf /tmp/cxx/*
+RUN wget -O or-tools.tar.gz https://github.com/google/or-tools/archive/refs/tags/v9.14.tar.gz && \
+    mkdir or-tools && tar -xf or-tools.tar.gz -C or-tools --strip-components=1 && \
+    cd or-tools && \
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_CXX=ON \
+        -DBUILD_BZip2=ON -DBUILD_ZLIB=ON -DBUILD_Protobuf=ON -DBUILD_re2=ON \
+        -DUSE_COINOR=ON -DBUILD_CoinUtils=ON -DBUILD_Osi=ON -DBUILD_Clp=ON \
+        -DBUILD_Cgl=ON -DBUILD_Cbc=ON -DUSE_GLPK=ON -DBUILD_GLPK=ON \
+        -DUSE_HIGHS=ON -DBUILD_HIGHS=ON -DUSE_SCIP=ON -DBUILD_SCIP=ON \
+        -DBUILD_soplex=ON -DBUILD_Boost=ON -DBUILD_SAMPLES=OFF \
+        -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_PREFIX_PATH=/opt/cxx -DCMAKE_INSTALL_PREFIX=/opt/cxx && \
+    cmake --build build -j"$(nproc)" --target install && \
+    cd /tmp/cxx && rm -rf /tmp/cxx/*
+
 # Full version
 FROM light AS full
 ARG TARGETARCH
@@ -126,11 +154,8 @@ RUN git clone --depth 1 https://github.com/arximboldi/immer.git && \
     cp -r range-v3/include/* /usr/local/include/ && \
     git clone --depth 1 https://github.com/martinus/unordered_dense.git && \
     cp unordered_dense/include/ankerl/unordered_dense.h /usr/local/include/
-# Abseil は AtCoder と同じ 20250512.1 だけを入れる (apt の 20220623 もあると、リンカが /usr/lib の古い方を先に拾う)
-RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
-    cd abseil-cpp && mkdir build && cd build && \
-    cmake .. -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
-    make -j$(nproc) install
+# 別ステージでビルドした Abseil と OR-Tools を依存ライブラリごと入れる
+COPY --from=cxx-libs-build /opt/cxx/ /usr/local/
 # リリースの tarball は submodule (eigen など) を同梱しているので、GitLab から取らずに済む
 # tarball の Python パッケージ lightgbm/ が CLI の出力先と衝突するので、AtCoder と同じくライブラリだけをビルドする。
 # AtCoder と同じく静的ライブラリにして /usr/local に入れる (#include <LightGBM/c_api.h> と -l_lightgbm で使う)
@@ -152,16 +177,6 @@ RUN case "$TARGETARCH" in \
         *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac && \
     rm libtorch.zip
-RUN case "$TARGETARCH" in \
-        amd64) or_tools=or-tools_amd64_ubuntu-24.04_cpp_v9.14.6206 ;; \
-        arm64) or_tools=or-tools_aarch64_AlmaLinux-8.10_cpp_v9.14.6206 ;; \
-        *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
-    esac && \
-    wget -O or-tools.tar.gz "https://github.com/google/or-tools/releases/download/v9.14/${or_tools}.tar.gz" && \
-    tar -xf or-tools.tar.gz && \
-    cp -r or-tools_*/include/* /usr/local/include/ && \
-    cp -r or-tools_*/lib*/* /usr/local/lib/ && \
-    rm -rf or-tools.tar.gz or-tools_*
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/usr/include/eigen3:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
     LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
 # ojt が外部ライブラリを AtCoder と同じ define とリンクのフラグでビルドするためのファイル。イメージに無いライブラリの -l は落とす

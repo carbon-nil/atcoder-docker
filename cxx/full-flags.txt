@@ -1,6 +1,6 @@
 # full の外部ライブラリを使う C++ を AtCoder と同じ条件でビルドするためのフラグ (ojt が読む)
 # AtCoder 2025-10 の C++23 (GCC 15.2.0) のコンパイルコマンド (img.atcoder.jp/file/language-update/2025-10/017-23_gcc_14-2-0.toml) から、
-# light と共通のフラグ (ojt 本体) と、OR-Tools の配布物に無い -lGLPK を除いたもの
+# light と共通のフラグ (ojt 本体が渡すもの) を除いたもの
 -DOR_PROTO_DLL=
 -DPROTOBUF_USE_DLLS
 -DUSE_BOP
@@ -15,10 +15,6 @@
 -Wl,-R/opt/libtorch/lib
 -Wl,-rpath-link,/opt/torch.libs
 -Wl,--as-needed
-# arm64 の OR-Tools の共有ライブラリは標準ライブラリのシンボルも公開していて、先に並べると使わないプログラムにもリンクされる。
-# 標準ライブラリを先に解決させる (これが無いと LibTorch と一緒に読み込まれて落ちる)
--lstdc++
--lm
 -labsl_cordz_sample_token
 -labsl_failure_signal_handler
 -labsl_flags_parse
@@ -78,6 +74,7 @@
 -lClp
 -lClpSolver
 -lCoinUtils
+-lGLPK
 -lOsi
 -lOsiCbc
 -lOsiClp
