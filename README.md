@@ -15,22 +15,21 @@ docker pull ghcr.io/carbon-nil/atcoder-docker:latest-light
 docker pull ghcr.io/carbon-nil/atcoder-docker:latest-full
 ```
 
-3. Docker コンテナを起動する
+3. Docker コンテナを起動する  
+full を使うときはタグを `latest-full` にします。VS Code の Dev Containers で使う場合は、`"remoteUser": "ubuntu"` を指定すると、作ったファイルがホストのユーザーの所有になります (root のままだとホストでは root の所有になります)。
 
 ```bash
 docker run -it --rm -v "$(pwd)":/workspace ghcr.io/carbon-nil/atcoder-docker:latest-light
 ```
 
-full を使うときはタグを `latest-full` にします。VS Code の Dev Containers で使う場合は、`"remoteUser": "ubuntu"` を指定すると、作ったファイルがホストのユーザーの所有になります (root のままだとホストでは root の所有になります)。
-
-4. AtCoder にログインする
+4. AtCoder にログインする  
+AtCoder は Cloudflare Turnstile を導入しているため、`acc login` / `oj login` ではログインできません。  
+Note: コンテナを作り直すたびに、`aclogin` でログインし直す必要があります。
 
 ```bash
 # ブラウザで AtCoder にログインし、cookie の REVEL_SESSION の値を貼り付ける
 aclogin
 ```
-
-AtCoder は Cloudflare Turnstile を導入しているため、`acc login` / `oj login` ではログインできません。
 
 ## 使い方 / Usage
 
@@ -74,7 +73,7 @@ ojt
 
 Cloudflare Turnstile のため、`acc submit` / `oj submit` による提出はできません。
 
-そのため問題なく実装が出来たら、`main.*` の中身をブラウザで AtCoder の提出欄に貼り付けて提出します。言語は `C++23 (GCC 15.2.0)`、`Python (CPython 3.13.7)` / `Python (PyPy 3.11-v7.3.20)`、`Rust (rustc 1.89.0)` を選びます。
+そのため、問題なく実装できたら、`main.*` の中身をブラウザで AtCoder の提出欄に貼り付けて提出します。言語は `C++23 (GCC 15.2.0)`、`Python (CPython 3.13.7)` / `Python (PyPy 3.11-v7.3.20)`、`Rust (rustc 1.89.0)` を選びます。
 
 ### テンプレートの設定 / Setting Up Templates
 
@@ -125,7 +124,7 @@ AtCoder のジャッジが採用している外部ライブラリを入れてい
 |---|---|
 | C++ | Boost 1.83、GMP 6.3.0、Eigen 3.4.0、Abseil 20250512.1、Z3 4.8.12、immer、range-v3 0.12.0、unordered_dense、LightGBM 4.6.0、LibTorch 2.8.0 (CPU)、OR-Tools 9.14 |
 | Python (CPython) | numpy、scipy、pandas、scikit-learn、networkx、PuLP、bitarray、more-itertools、mpmath、shapely、sortedcontainers、sympy、z3-solver、ac-library-python、acl-cpp-python、cppyy |
-| Rust | AtCoder と同じ `Cargo.toml` / `Cargo.lock` ([rust-lang-ja/atcoder-proposal](https://github.com/rust-lang-ja/atcoder-proposal/tree/7a724cdf84202ce3bef84527676e2c398bca7b6e)) の crate 一式 (proconio、ac-library-rs、itertools、rand、num、petgraph、ndarray、nalgebra など)。事前にビルドしてあるので、`Cargo.toml` の `[dependencies]` に書けばネットワークなしで使える |
+| Rust | AtCoder と同じ `Cargo.toml` / `Cargo.lock` ([rust-lang-ja/atcoder-proposal](https://github.com/rust-lang-ja/atcoder-proposal/tree/7a724cdf84202ce3bef84527676e2c398bca7b6e)) の crate 一式 (proconio、ac-library-rs、itertools、rand、num、petgraph、ndarray、nalgebra など)。事前にビルドしてあるので、`Cargo.toml` の `[dependencies]` に書けばネットワークなしで使えます |
 
 ### ライセンス / License
 
@@ -141,4 +140,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### 各種リンク / Links
 
 Discord: @carbon_nil  
-X(Twitter): @carbon_nil
+X (Twitter): @carbon_nil
