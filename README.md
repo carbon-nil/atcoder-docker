@@ -69,6 +69,8 @@ ojt
 
 `ojt` の後ろに付けた引数は `oj t` に渡されます (例: `ojt -e 1e-6` で誤差を許容)。
 
+full では、C++ の外部ライブラリ (OR-Tools、Abseil、LightGBM、LibTorch など) も AtCoder と同じ define とリンクのフラグ ([cxx/full-flags.txt](cxx/full-flags.txt)) でビルドします。`#include` するだけで使えます。
+
 ### 提出 / Submission
 
 Cloudflare Turnstile のため、`acc submit` / `oj submit` による提出はできません。

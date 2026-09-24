@@ -8,12 +8,8 @@ RUN apt update && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Light version
-FROM base-toolchain AS light
+FROM base-toolchain AS gcc
 
-ARG TARGETARCH
-
-# C++
 # GCC 15.2.0 は Ubuntu 24.04 向けにビルドされた toolchain PPA から入れる (AtCoder も 24.04 上でビルドしている)
 RUN apt update && \
     apt install -y --no-install-recommends software-properties-common && \
@@ -27,10 +23,16 @@ RUN apt update && \
     ln -s /usr/bin/g++-15 /usr/local/bin/g++ && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
+ENV CXX=g++ CC=gcc
+
+# Light version
+FROM gcc AS light
+
+ARG TARGETARCH
+
+# C++
 RUN git clone --depth 1 -b v1.6 https://github.com/atcoder/ac-library.git /lib/ac-library
-ENV CXX=g++ \
-    CC=gcc \
-    CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library"
+ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library"
 
 # Python
 RUN apt update && \
@@ -107,6 +109,39 @@ RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools 
 FROM scratch AS cppyy-cling-wheel
 COPY --from=cppyy-cling-build /wheels /
 
+# arm64 の配布済み OR-Tools は AlmaLinux ビルドで libstdc++ のシンボルを再公開し、LibTorch と併用すると落ちる。
+# AtCoder と同じくソースからビルドし、full の残りとは独立してキャッシュできるよう別ステージにする。
+FROM gcc AS cxx-libs-build
+WORKDIR /tmp/cxx
+
+# OR-Tools (PDLP など) は Eigen3 の CMake ターゲットを使う。AtCoder と同じく apt の Eigen を入れておく
+RUN apt update && \
+    apt install -y --no-install-recommends libeigen3-dev && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
+    cd abseil-cpp && \
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=20 \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DABSL_ENABLE_INSTALL=ON \
+        -DABSL_PROPAGATE_CXX_STD=ON -DCMAKE_INSTALL_PREFIX=/opt/cxx && \
+    cmake --build build -j"$(nproc)" --target install && \
+    cd /tmp/cxx && rm -rf /tmp/cxx/*
+RUN wget -O or-tools.tar.gz https://github.com/google/or-tools/archive/refs/tags/v9.14.tar.gz && \
+    mkdir or-tools && tar -xf or-tools.tar.gz -C or-tools --strip-components=1 && \
+    cd or-tools && \
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_CXX=ON \
+        -DBUILD_BZip2=ON -DBUILD_ZLIB=ON -DBUILD_Protobuf=ON -DBUILD_re2=ON \
+        -DUSE_COINOR=ON -DBUILD_CoinUtils=ON -DBUILD_Osi=ON -DBUILD_Clp=ON \
+        -DBUILD_Cgl=ON -DBUILD_Cbc=ON -DUSE_GLPK=ON -DBUILD_GLPK=ON \
+        -DUSE_HIGHS=ON -DBUILD_HIGHS=ON -DUSE_SCIP=ON -DBUILD_SCIP=ON \
+        -DBUILD_soplex=ON -DBUILD_Boost=ON -DBUILD_SAMPLES=OFF \
+        -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_PREFIX_PATH=/opt/cxx -DCMAKE_INSTALL_PREFIX=/opt/cxx && \
+    cmake --build build -j"$(nproc)" --target install && \
+    cd /tmp/cxx && rm -rf /tmp/cxx/*
+# 依存ライブラリが man を prefix/man に入れるが、Ubuntu の /usr/local/man は symlink なので full にコピーできない。man は使わないので消す
+RUN rm -rf /opt/cxx/man
+
 # PyPI に PyPy 3.11 用の scipy、pandas、scikit-learn、shapely、bitarray、cppyy、acl-cpp-python の wheel はないので、
 # .github/workflows/pypy-wheels.yml で一度だけビルドして Release に置き、full イメージで使う
 FROM light AS pypy-wheels-build
@@ -140,7 +175,6 @@ WORKDIR /opt
 # C++ Library
 RUN apt update && \
     apt install -y --no-install-recommends \
-        libabsl-dev \
         libboost-all-dev \
         libeigen3-dev \
         libgmp-dev \
@@ -152,16 +186,16 @@ RUN git clone --depth 1 https://github.com/arximboldi/immer.git && \
     cp -r range-v3/include/* /usr/local/include/ && \
     git clone --depth 1 https://github.com/martinus/unordered_dense.git && \
     cp unordered_dense/include/ankerl/unordered_dense.h /usr/local/include/
-RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
-    cd abseil-cpp && mkdir build && cd build && \
-    cmake .. -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
-    make -j$(nproc) install
+# 別ステージでビルドした Abseil と OR-Tools を依存ライブラリごと入れる
+COPY --from=cxx-libs-build /opt/cxx/ /usr/local/
 # リリースの tarball は submodule (eigen など) を同梱しているので、GitLab から取らずに済む
-# tarball の Python パッケージ lightgbm/ が CLI の出力先と衝突するので、AtCoder と同じくライブラリだけをビルドする
+# tarball の Python パッケージ lightgbm/ が CLI の出力先と衝突するので、AtCoder と同じくライブラリだけをビルドする。
+# AtCoder と同じく静的ライブラリにして /usr/local に入れる (#include <LightGBM/c_api.h> と -l_lightgbm で使う)
 RUN wget -O lightgbm.tar.gz https://github.com/microsoft/LightGBM/releases/download/v4.6.0/lightgbm-4.6.0.tar.gz && \
     mkdir LightGBM && tar -xf lightgbm.tar.gz -C LightGBM --strip-components=1 && rm lightgbm.tar.gz && \
     cd LightGBM && mkdir build && cd build && \
-    cmake -DBUILD_CLI=OFF .. && make -j$(nproc)
+    cmake -DBUILD_CLI=OFF -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. && make -j$(nproc) install && \
+    cd /opt && rm -rf LightGBM
 # arm64 向けの libtorch は配布されていないので、torch の wheel から include と lib を取り出す
 # (wheel の lib は rpath で ../../torch.libs を参照するので、/opt に展開してから libtorch に改名する)
 RUN case "$TARGETARCH" in \
@@ -174,21 +208,25 @@ RUN case "$TARGETARCH" in \
             mv torch libtorch ;; \
         *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac && \
-    rm libtorch.zip
-RUN case "$TARGETARCH" in \
-        amd64) or_tools=or-tools_amd64_ubuntu-24.04_cpp_v9.14.6206 ;; \
-        arm64) or_tools=or-tools_aarch64_AlmaLinux-8.10_cpp_v9.14.6206 ;; \
-        *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
-    esac && \
-    wget -O or-tools.tar.gz "https://github.com/google/or-tools/releases/download/v9.14/${or_tools}.tar.gz" && \
-    tar -xf or-tools.tar.gz && \
-    cp -r or-tools_*/include/* /usr/local/include/ && \
-    cp -r or-tools_*/lib*/* /usr/local/lib/ && \
-    rm -rf or-tools.tar.gz or-tools_*
+    rm libtorch.zip && \
+    # amd64 の libtorch は古い protobuf の静的ライブラリを同梱していて、-lprotobuf が OR-Tools の protobuf ではなくこちらを拾う。
+    # AtCoder と同じく消す
+    rm -f /opt/libtorch/lib/libprotobuf.a /opt/libtorch/lib/libprotobuf-lite.a /opt/libtorch/lib/libprotoc.a
 # /opt/libtorch/lib は LD_LIBRARY_PATH に入れない (amd64 の libtorch の libtorch_python.so が Python の torch の import を壊す)。
 # C++ から使うときは -L/opt/libtorch/lib -Wl,-R/opt/libtorch/lib でリンクする
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/usr/include/eigen3:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
     LD_LIBRARY_PATH="/usr/local/lib"
+# ojt が外部ライブラリを AtCoder と同じ define とリンクのフラグでビルドするためのファイル。イメージに無いライブラリの -l は落とす
+COPY cxx/full-flags.txt /tmp/cxx/
+RUN mkdir -p /usr/local/share/ojt && \
+    while read -r f; do \
+        case "$f" in -l*) \
+            echo 'int main() {}' | g++ -x c++ - -o /dev/null -L/opt/libtorch/lib "$f" 2> /dev/null || \
+                { echo "ojt: skip $f (not installed)"; continue; } ;; \
+        esac; \
+        echo "$f" >> /usr/local/share/ojt/cxx-flags; \
+    done < /tmp/cxx/full-flags.txt && \
+    rm -rf /tmp/cxx
 
 # Python Library
 # AtCoder と同じバージョンに固定する (python/cpython-freeze.txt)。torch と numba も AtCoder と同じ入れ方にする
