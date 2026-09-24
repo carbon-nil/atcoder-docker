@@ -1,132 +1,136 @@
 # atcoder-docker
 
-AtCoder の 2025-10 ジャッジと同じ処理系を入れた Docker イメージ。これ単体で、問題の取得から解答の作成、サンプルでの検査までを行える。提出はブラウザから行う (後述)。
+問題の入出力例の取得、実装環境の構築、ビルドと実行の自動化を行う Docker イメージです。  
+処理系とコンパイルオプションは AtCoder の 2025-10 ジャッジ (GCC 15.2.0 / CPython 3.13.7 / PyPy 3.11 / Rust 1.89.0) に合わせています。linux/amd64 と linux/arm64 に対応しています。
 
-- 対応: linux/amd64、linux/arm64
-- 配布: `ghcr.io/carbon-nil/atcoder-docker`
+## 導入方法 / Installation
 
-## イメージ: light と full
+1. Docker をインストールする
+2. ghcr.io から atcoder-docker を pull する
 
-| | light | full |
-|---|---|---|
-| 想定する用途 | アルゴリズム (ABC / ARC / AGC) | ヒューリスティック (AHC) の開発 |
-| 中身 | 3 言語の処理系、ac-library、問題取得・検査のツール | light に加えて、AtCoder のジャッジが採用している外部ライブラリ (数値計算・最適化・機械学習・乱数など) |
-| タグ | `latest-light` (`latest` も同じ)、固定するなら `<バージョン>-light` (例: `4.1.0-light`) | `latest-full`、固定するなら `<バージョン>-full` (例: `4.1.0-full`) |
-
-アルゴリズムのコンテストは標準ライブラリと ac-library でほぼ足りるので、light で十分。AHC では乱数・数値計算・最適化などの外部ライブラリをジャッジと同じ条件で使いたいので、full を使う。
-
-### 共通 (light / full)
-
-| 言語 | 処理系 | ジャッジと合わせている点 |
-|---|---|---|
-| C++ | GCC 15.2.0 (`g++`) | `-std=gnu++23 -O2 -DATCODER -DONLINE_JUDGE` などのフラグ (`ojt` が付ける) |
-| Python | CPython 3.13.7 (`python3.13`)、PyPy 3.11 v7.3.20 (`pypy3`) | `-X int_max_str_digits=0` |
-| Rust | 1.89.0 (`rustc`, `cargo`) | `--cfg atcoder` (cargo の設定) |
-
-- C++: [AtCoder Library (ac-library)](https://github.com/atcoder/ac-library) v1.6 (`#include <atcoder/all>`)
-- ツール: [online-judge-tools](https://github.com/online-judge-tools/oj) (`oj`) 11.5.1、[atcoder-cli](https://github.com/Tatamo/atcoder-cli) (`acc`) 2.2.0、[aclogin](https://github.com/key-moon/aclogin)、自作のコマンド `ojt` / `vc` (後述)
-
-### full のみ
-
-**C++**
-
-| ライブラリ | バージョン | 主な用途 |
-|---|---|---|
-| Boost | 1.83 | 多倍長整数、幾何、グラフなど |
-| GMP | 6.3.0 | 多倍長演算 |
-| Eigen | 3.4.0 | 行列・線形代数 |
-| Abseil | 20250512.1 | ハッシュコンテナなど |
-| Z3 | 4.8.12 | SMT ソルバ |
-| immer / range-v3 (0.12.0) / unordered_dense | - | 永続データ構造、range、高速なハッシュマップ |
-| LightGBM | 4.6.0 | 勾配ブースティング |
-| LibTorch | 2.8.0 (CPU) | 機械学習 |
-| OR-Tools | 9.14 | 最適化 (LP / MIP / CP-SAT) |
-
-**Python (CPython 3.13)**
-
-numpy、scipy、pandas、scikit-learn、networkx、PuLP、bitarray、more-itertools、mpmath、shapely、sortedcontainers、sympy、z3-solver、ac-library-python、acl-cpp-python、cppyy (3.5.0)
-
-**Rust**
-
-AtCoder と同じ `Cargo.toml` / `Cargo.lock` ([rust-lang-ja/atcoder-proposal@7a724cd](https://github.com/rust-lang-ja/atcoder-proposal/tree/7a724cdf84202ce3bef84527676e2c398bca7b6e)) の crate を事前にビルドしてある。`Cargo.toml` の `[dependencies]` に書けば、ネットワークなしで (`--offline`) 使える。主なもの: proconio、ac-library-rs、itertools、rand 系、num 系、petgraph、ndarray、nalgebra、superslice、rustc-hash、smallvec など。
-
-## 使い方
-
-### docker run
-
-```sh
-docker run --rm -it -v "$PWD":/workspace ghcr.io/carbon-nil/atcoder-docker:latest-light
+```bash
+# latest-light: Algorithm Contest 用
+docker pull ghcr.io/carbon-nil/atcoder-docker:latest-light
+# latest-full: Heuristic Contest 用
+docker pull ghcr.io/carbon-nil/atcoder-docker:latest-full
 ```
 
-full を使うときはタグを `latest-full` にする (devcontainer でも同じ)。
+3. Docker コンテナを起動する
 
-このリポジトリの `docker-compose.yml` は、手元でビルドしたイメージにカレントディレクトリを `/workspace` としてマウントする。
+```bash
+docker run -it --rm -v "$(pwd)":/workspace ghcr.io/carbon-nil/atcoder-docker:latest-light
+```
 
-既定のユーザーは root なので、マウントしたディレクトリに作ったファイルはホストでは root の所有になる。避けたいときは、uid をホストのユーザーに合わせる次の devcontainer を使う。
+full を使うときはタグを `latest-full` にします。VS Code の Dev Containers で使う場合は、`"remoteUser": "ubuntu"` を指定すると、作ったファイルがホストのユーザーの所有になります (root のままだとホストでは root の所有になります)。
 
-### VS Code の Dev Containers
+4. AtCoder にログインする
+
+```bash
+# ブラウザで AtCoder にログインし、cookie の REVEL_SESSION の値を貼り付ける
+aclogin
+```
+
+AtCoder は Cloudflare Turnstile を導入しているため、`acc login` / `oj login` ではログインできません。コンテナを作り直したら再度実行します。
+
+## 使い方 / Usage
+
+### 問題の入出力例の取得 / Fetching Problem Samples
+
+```bash
+# コンテスト: abc123/a, abc123/b, ... にテンプレートと入出力例 (test/) を置く
+acc new abc123
+# テンプレートを指定する場合
+acc new abc123 --template python
+
+# AtCoder Problems のバーチャルコンテスト: vc/<ID の先頭 8 文字>/a, b, ... に置く
+vc https://kenkoooo.com/atcoder/#/contest/show/<ID>
+vc <ID> -t rust
+
+# 1 問だけ: カレントディレクトリの test/ に置く
+oj d https://atcoder.jp/contests/abc123/tasks/abc123_a
+```
+
+`vc` はコンテストの問題へのリンクを `vc/<ID>/README.md` にまとめます。既にある問題ディレクトリは上書きせず、入出力例の無い問題 (インタラクティブ問題など) は警告を出して続けます。
+
+### ビルドと実行 / Build and Run
+
+問題のディレクトリ (`main.*` と `test/` がある場所) で `ojt` を実行すると、ジャッジと同じ条件でビルドし、入出力例で検査します (`oj t`)。
+
+```bash
+# C++ の場合: main.cpp を g++ -std=gnu++23 -O2 -DATCODER -DONLINE_JUDGE ... でビルド
+ojt
+
+# Python の場合: main.py を CPython 3.13 (-X int_max_str_digits=0) で実行
+ojt
+# PyPy で実行する場合
+ojt pypy
+
+# Rust の場合: Cargo.toml があれば cargo build --release、なければ rustc -O main.rs
+ojt
+```
+
+`ojt` の後ろに付けた引数は `oj t` に渡されます (例: `ojt -e 1e-6` で誤差を許容)。
+
+### 提出 / Submission
+
+検査が通ったら、`main.*` の中身をブラウザで AtCoder の提出欄に貼り付けて提出します。言語は `C++23 (GCC 15.2.0)`、`Python (CPython 3.13.7)` / `Python (PyPy 3.11-v7.3.20)`、`Rust (rustc 1.89.0)` を選びます。Cloudflare Turnstile のため、`acc submit` / `oj submit` による提出はできません。
+
+### テンプレートの設定 / Setting Up Templates
+
+`acc new` と `vc` は、acc の設定ディレクトリにあるテンプレートを問題ごとにコピーします。
+
+```bash
+# テンプレートの置き場所
+acc config-dir
+# 例: C++ のテンプレートを作る
+mkdir -p "$(acc config-dir)/cpp"
+cat > "$(acc config-dir)/cpp/main.cpp" <<'EOF'
+#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+}
+EOF
+cat > "$(acc config-dir)/cpp/template.json" <<'EOF'
+{"task": {"program": ["main.cpp"], "submit": "main.cpp"}}
+EOF
+# 既定のテンプレートにする
+acc config default-template cpp
+```
+
+Rust で `Cargo.toml` を置く場合は、`template.json` の `cmd` でパッケージ名と bin 名を問題のディレクトリ名に書き換えます (`ojt` は `./target/release/<ディレクトリ名>` を実行するため)。
 
 ```json
-{
-  "image": "ghcr.io/carbon-nil/atcoder-docker:latest-light",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
-  "workspaceFolder": "/workspace",
-  "remoteUser": "ubuntu"
-}
+{"task": {"program": ["main.rs", "Cargo.toml"], "submit": "main.rs",
+          "cmd": "sed -i \"s/__TASK__/$(basename \"$PWD\")/\" Cargo.toml"}}
 ```
 
-`remoteUser` を `ubuntu` にすると、Linux の VS Code がこのユーザーの uid をホストのユーザーに合わせるので、作ったファイルはホストのユーザーの所有になる。すべての処理系とツールは `ubuntu` ユーザーでも使える。
+## その他 / Others
 
-利用例: [carbon-nil/atcoder-solutions](https://github.com/carbon-nil/atcoder-solutions) (非公開) は、このイメージに自作ライブラリ [atcoder-library](https://github.com/carbon-nil/atcoder-library) と提出用の展開スクリプトを組み合わせている。
+### ライブラリ / Libraries
 
-## コマンド
+**light / full 共通**
 
-| コマンド | 内容 |
+- C++: [AtCoder Library (ac-library)](https://github.com/atcoder/ac-library) v1.6
+- ツール: [online-judge-tools](https://github.com/online-judge-tools/oj) (`oj`)、[atcoder-cli](https://github.com/Tatamo/atcoder-cli) (`acc`)、[aclogin](https://github.com/key-moon/aclogin)、`ojt`、`vc`
+
+**full のみ (Heuristic Contest 用)**
+
+AtCoder のジャッジが採用している外部ライブラリを入れています。
+
+| 言語 | ライブラリ |
 |---|---|
-| `ojt [pypy]` | カレントディレクトリの `main.cpp` / `main.py` / `main.rs` をジャッジと同じ条件でビルドし、`test/` のサンプルで検査する (`oj t`)。`pypy` を付けると Python を PyPy で動かす。`main.rs` は `Cargo.toml` があれば `cargo build --release`、なければ `rustc -O` |
-| `vc <URL か ID> [-t テンプレート]` | [AtCoder Problems](https://kenkoooo.com/atcoder/) のバーチャルコンテストを、問題ごとに `vc/<ID の先頭 8 文字>/<a,b,...>/` に展開する。acc のテンプレートを置き、`oj d` でサンプルを `test/` に取得し、`vc/<ID>/README.md` に問題へのリンクをまとめる。既にある問題ディレクトリは上書きしない。サンプルの無い問題 (インタラクティブ問題など) は警告して続ける |
-| `acc new <コンテスト ID>` | コンテストの問題ディレクトリとサンプルを作る (atcoder-cli)。テンプレートは `acc config-dir` に置く |
-| `oj d <問題 URL>` / `oj t` | サンプルの取得 / 検査 (online-judge-tools) |
-| `aclogin` | ブラウザの `REVEL_SESSION` cookie を貼って、acc と oj をログイン状態にする |
+| C++ | Boost 1.83、GMP 6.3.0、Eigen 3.4.0、Abseil 20250512.1、Z3 4.8.12、immer、range-v3 0.12.0、unordered_dense、LightGBM 4.6.0、LibTorch 2.8.0 (CPU)、OR-Tools 9.14 |
+| Python (CPython) | numpy、scipy、pandas、scikit-learn、networkx、PuLP、bitarray、more-itertools、mpmath、shapely、sortedcontainers、sympy、z3-solver、ac-library-python、acl-cpp-python、cppyy |
+| Rust | AtCoder と同じ `Cargo.toml` / `Cargo.lock` ([rust-lang-ja/atcoder-proposal](https://github.com/rust-lang-ja/atcoder-proposal/tree/7a724cdf84202ce3bef84527676e2c398bca7b6e)) の crate 一式 (proconio、ac-library-rs、itertools、rand、num、petgraph、ndarray、nalgebra など)。事前にビルドしてあるので、`Cargo.toml` の `[dependencies]` に書けばネットワークなしで使える |
 
-`ojt` と `vc` の本体は `bin/` にあり、イメージの `/usr/local/bin` に置かれる。
+### ライセンス / License
 
-## 解答から提出までの流れ
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-```sh
-aclogin                    # 初回と、コンテナを作り直したとき
-acc new abc400             # または vc <バーチャルコンテストの URL>
-cd abc400/a
-# main.cpp を書く
-ojt                        # サンプルで検査 (AC になるまで繰り返す)
-```
+イメージに含まれるソフトウェアは、それぞれのライセンスに従います (GCC: GPL-3.0 with GCC Runtime Library Exception、ac-library: CC0-1.0、online-judge-tools: MIT、atcoder-cli: BSD-3-Clause、Boost: BSL-1.0、OR-Tools: Apache-2.0、LibTorch: BSD-3-Clause など)。
 
-検査が通ったら、`main.*` の中身をブラウザで AtCoder の提出欄に貼って提出する。言語は処理系に合わせて選ぶ (`C++23 (GCC 15.2.0)`、`Python (CPython 3.13.7)` / `Python (PyPy 3.11-v7.3.20)`、`Rust (rustc 1.89.0)`)。
+### 各種リンク / Links
 
-AtCoder は Cloudflare Turnstile を導入しているため、`acc submit` / `oj submit` などコマンドラインからの提出と、`acc login` / `oj login` は通らない。ログインは `aclogin` で cookie を渡し、提出はブラウザで行う。サンプルの取得 (`oj d`) は、公開中の問題ならログインなしでもできる。
-
-## ビルドと公開
-
-- `v*` のタグを push すると、GitHub Actions が light / full を amd64 と arm64 のネイティブ runner でビルドし、ghcr.io に公開する。ビルドキャッシュは `ghcr.io/carbon-nil/atcoder-docker-cache` に置く
-- Actions の手動実行 (`workflow_dispatch`) はビルドの確認だけで、公開はしない
-- full の cppyy は arm64 向けの wheel が PyPI にないので、`cppyy-wheel.yml` でビルドして Release (`cppyy-cling-6.32.8`) に置いたものを使う
-- 手元でビルドする場合: `docker buildx build --target light -t atcoder-docker:light .` (full は `--target full`)
-
-## ライセンス
-
-このリポジトリ (Dockerfile、`bin/` のスクリプト、ワークフロー) は [MIT License](LICENSE)。
-
-イメージに含まれるソフトウェアは、それぞれのライセンスに従う。主なもの:
-
-| ソフトウェア | ライセンス |
-|---|---|
-| GCC | GPL-3.0 (GCC Runtime Library Exception 付き) |
-| CPython / PyPy / Rust | PSF-2.0 / MIT / MIT または Apache-2.0 |
-| AtCoder Library (ac-library) | CC0-1.0 |
-| online-judge-tools / atcoder-cli / aclogin | MIT / BSD-3-Clause / MIT |
-| Boost / immer / range-v3 | BSL-1.0 |
-| GMP / Eigen | LGPL-3.0 または GPL-2.0 / MPL-2.0 |
-| Abseil / OR-Tools | Apache-2.0 |
-| Z3 / LightGBM / unordered_dense | MIT |
-| LibTorch | BSD-3-Clause |
-| Python・Rust のライブラリ | 各パッケージのライセンス (numpy・scipy・pandas・scikit-learn などは BSD-3-Clause、ac-library-python・acl-cpp-python は CC0-1.0) |
+Discord: @carbon_nil
+X(Twitter): @carbon_nil
