@@ -139,6 +139,8 @@ RUN wget -O or-tools.tar.gz https://github.com/google/or-tools/archive/refs/tags
         -DCMAKE_PREFIX_PATH=/opt/cxx -DCMAKE_INSTALL_PREFIX=/opt/cxx && \
     cmake --build build -j"$(nproc)" --target install && \
     cd /tmp/cxx && rm -rf /tmp/cxx/*
+# 依存ライブラリが man を prefix/man に入れるが、Ubuntu の /usr/local/man は symlink なので full にコピーできない。man は使わないので消す
+RUN rm -rf /opt/cxx/man
 
 # Full version
 FROM light AS full
