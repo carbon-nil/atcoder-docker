@@ -63,11 +63,15 @@ RUN case "$TARGETARCH" in \
     pypy3 -m ensurepip
 
 # Rust
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.89.0 --profile minimal && \
-    /root/.cargo/bin/rustup component add rust-src && \
-    rm -rf /root/.rustup/toolchains/*/share/doc /root/.cargo/registry/cache
-ENV PATH="/root/.cargo/bin:${PATH}"
-COPY <<'EOF' /root/.cargo/config.toml
+# root 以外のユーザー (devcontainer の remoteUser) も使えるよう、公式の rust イメージと同じく /usr/local に置く
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH="/usr/local/cargo/bin:${PATH}"
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain 1.89.0 --profile minimal && \
+    rustup component add rust-src && \
+    rm -rf "$RUSTUP_HOME"/toolchains/*/share/doc "$CARGO_HOME"/registry/cache && \
+    chmod -R a+w "$RUSTUP_HOME" "$CARGO_HOME"
+COPY <<'EOF' /usr/local/cargo/config.toml
 [build]
 rustflags = ["--cfg", "atcoder"]
 EOF
@@ -80,9 +84,11 @@ RUN apt update && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 RUN pip3 install --no-cache-dir --break-system-packages online-judge-tools aclogin
+# acc の設定はユーザーごとなので、devcontainer の remoteUser (ubuntu) にも入れる
 RUN npm install -g atcoder-cli && \
     npm cache clean --force && \
-    acc config default-test-dirname-format test
+    acc config default-test-dirname-format test && \
+    runuser -u ubuntu -- acc config default-test-dirname-format test
 
 # Command
 COPY --chmod=755 bin/ojt /usr/local/bin/ojt
@@ -193,7 +199,8 @@ RUN curl -fsS --remote-name-all \
         https://raw.githubusercontent.com/rust-lang-ja/atcoder-proposal/7a724cdf84202ce3bef84527676e2c398bca7b6e/Cargo.lock && \
     mkdir src && echo 'fn main() {}' > src/main.rs && \
     cargo build --release --locked && \
-    rm -rf /opt/rust-warmup
+    rm -rf /opt/rust-warmup && \
+    chmod -R a+w "$CARGO_HOME"
 
 # Workspace
 WORKDIR /workspace
