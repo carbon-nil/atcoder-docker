@@ -11,7 +11,7 @@ AtCoder の 2025-10 ジャッジと同じ処理系を入れた Docker イメー�
 |---|---|---|
 | 想定する用途 | アルゴリズム (ABC / ARC / AGC) | ヒューリスティック (AHC) の開発 |
 | 中身 | 3 言語の処理系、ac-library、問題取得・検査のツール | light に加えて、AtCoder のジャッジが採用している外部ライブラリ (数値計算・最適化・機械学習・乱数など) |
-| タグ | `4.1.0-light` / `latest-light` (`4.1.0` / `latest` も light) | `4.1.0-full` / `latest-full` |
+| タグ | `latest-light` (`latest` も同じ)、固定するなら `<バージョン>-light` (例: `4.1.0-light`) | `latest-full`、固定するなら `<バージョン>-full` (例: `4.1.0-full`) |
 
 アルゴリズムのコンテストは標準ライブラリと ac-library でほぼ足りるので、light で十分。AHC では乱数・数値計算・最適化などの外部ライブラリをジャッジと同じ条件で使いたいので、full を使う。
 
@@ -55,8 +55,10 @@ AtCoder と同じ `Cargo.toml` / `Cargo.lock` ([rust-lang-ja/atcoder-proposal@7a
 ### docker run
 
 ```sh
-docker run --rm -it -v "$PWD":/workspace ghcr.io/carbon-nil/atcoder-docker:4.1.0-light
+docker run --rm -it -v "$PWD":/workspace ghcr.io/carbon-nil/atcoder-docker:latest-light
 ```
+
+full を使うときはタグを `latest-full` にする (devcontainer でも同じ)。
 
 このリポジトリの `docker-compose.yml` は、手元でビルドしたイメージにカレントディレクトリを `/workspace` としてマウントする。
 
@@ -66,7 +68,7 @@ docker run --rm -it -v "$PWD":/workspace ghcr.io/carbon-nil/atcoder-docker:4.1.0
 
 ```json
 {
-  "image": "ghcr.io/carbon-nil/atcoder-docker:4.1.0-light",
+  "image": "ghcr.io/carbon-nil/atcoder-docker:latest-light",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
   "workspaceFolder": "/workspace",
   "remoteUser": "ubuntu"
