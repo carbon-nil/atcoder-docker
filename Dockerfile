@@ -165,8 +165,12 @@ RUN apt update && \
         libgeos-dev && \
     apt clean && rm -rf /var/lib/apt/lists/*
 COPY python/pypy-requirements.txt /tmp/pypy-requirements.txt
-RUN grep -v '^cppyy' /tmp/pypy-requirements.txt > /tmp/pypy-requirements-no-cppyy.txt && \
-    pypy3 -m pip wheel --no-cache-dir -r /tmp/pypy-requirements-no-cppyy.txt -w /wheels --prefer-binary
+# acl-cpp-python は CMakeLists.txt の Release 設定で -march=native を付けるので、ビルドしたマシン以外で
+# Illegal instruction になる。build-type を None にして外し、最適化は CXXFLAGS で Release と同じにする
+RUN grep -v -e '^cppyy' -e '^acl-cpp-python' /tmp/pypy-requirements.txt > /tmp/pypy-requirements-rest.txt && \
+    pypy3 -m pip wheel --no-cache-dir -r /tmp/pypy-requirements-rest.txt -w /wheels --prefer-binary && \
+    CXXFLAGS='-O3 -DNDEBUG' pypy3 -m pip wheel --no-cache-dir --no-deps -C cmake.build-type=None \
+        "$(grep '^acl-cpp-python' /tmp/pypy-requirements.txt)" -w /wheels
 # cppyy-backend の隔離ビルドは古い cppyy-cling (6.30.0) をソースからビルドしようとして失敗するので、
 # CPython と同じく cppyy-cling 6.32.8 を先に入れ、backend と cppyy は隔離せずに g++-13 でビルドする
 RUN pypy3 -m pip install --no-cache-dir --break-system-packages --prefer-binary \
@@ -258,7 +262,10 @@ RUN apt update && \
     apt install -y --no-install-recommends libmpfr-dev libmpc-dev && \
     apt clean && rm -rf /var/lib/apt/lists/*
 COPY python/cpython-freeze.txt /tmp/cpython-freeze.txt
-RUN python3.13 -m pip install --no-cache-dir --break-system-packages -r /tmp/cpython-freeze.txt && \
+# acl-cpp-python は pypy-wheels-build と同じく -march=native を外して先に入れる
+RUN CXXFLAGS='-O3 -DNDEBUG' python3.13 -m pip install --no-cache-dir --break-system-packages -C cmake.build-type=None \
+        "$(grep '^acl-cpp-python' /tmp/cpython-freeze.txt)" && \
+    python3.13 -m pip install --no-cache-dir --break-system-packages -r /tmp/cpython-freeze.txt && \
     python3.13 -m pip install --no-cache-dir --break-system-packages torch==2.8.0+cpu --index-url https://download.pytorch.org/whl/cpu && \
     wget -q -O numba.tar.gz https://files.pythonhosted.org/packages/1c/a0/e21f57604304aa03ebb8e098429222722ad99176a4f979d34af1d1ee80da/numba-0.61.2.tar.gz && \
     mkdir numba && tar -C numba --strip-components=1 -xf numba.tar.gz && \
