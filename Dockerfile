@@ -278,6 +278,27 @@ RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools 
     done && \
     python3.13 -c "import cppyy; cppyy.cppdef('int one() { return 1; }'); assert cppyy.gbl.one() == 1"
 
+# PyPy Library
+# AtCoder と同じライブラリ (python/pypy-requirements.txt) を、pypy-wheels.yml で Release に置いた wheel から入れる。
+# wheel は scipy などをシステムの OpenBLAS / GEOS にリンクしているので、その実行時ライブラリも入れる
+# (Release に wheel が無いときはソースからビルドできるよう、ビルド用のパッケージにしている)
+RUN apt update && \
+    apt install -y --no-install-recommends \
+        gfortran \
+        libopenblas-dev \
+        liblapack-dev \
+        pkg-config \
+        libgeos-dev && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+COPY python/pypy-requirements.txt /tmp/pypy-requirements.txt
+RUN pypy3 -m pip install --no-cache-dir --break-system-packages --prefer-binary \
+        --find-links https://github.com/carbon-nil/atcoder-docker/releases/expanded_assets/pypy-wheels-3.11-v7.3.20-${TARGETARCH} \
+        --find-links https://github.com/carbon-nil/atcoder-docker/releases/expanded_assets/cppyy-cling-6.32.8 \
+        -r /tmp/pypy-requirements.txt && \
+    rm /tmp/pypy-requirements.txt && \
+    pypy3 -c "import numpy, scipy, pandas, sklearn, networkx, sympy, shapely, bitarray, pulp, z3, sortedcontainers, more_itertools, mpmath, atcoder, acl_cpp.dsu, cppyy; \
+assert numpy.arange(4).sum() == 6; cppyy.cppdef('int one() { return 1; }'); assert cppyy.gbl.one() == 1"
+
 # Rust Library
 # AtCoder と同じ Cargo.toml / Cargo.lock (rust-lang-ja/atcoder-proposal、AtCoder のインストールスクリプトと同じコミット) で依存をビルドしておく
 WORKDIR /opt/rust-warmup
