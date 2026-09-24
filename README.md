@@ -126,6 +126,7 @@ AtCoder のジャッジが採用している外部ライブラリを、AtCoder �
 |---|---|
 | C++ | Boost、GMP、Eigen、Abseil、Z3、immer、range-v3、unordered_dense、LightGBM、LibTorch (CPU)、OR-Tools (SCIP、CBC、GLPK、HiGHS などのソルバを含む) |
 | Python (CPython) | numpy、scipy、pandas、polars、scikit-learn、lightgbm、torch (CPU)、numba、ortools、PuLP、z3-solver、networkx、rustworkx、sympy、gmpy2、shapely、sortedcontainers、more-itertools、bitarray、ac-library-python、acl-cpp-python、cppyy など |
+| Python (PyPy) | numpy、scipy、pandas、scikit-learn、networkx、sympy、shapely、z3-solver、PuLP、sortedcontainers、more-itertools、bitarray、mpmath、ac-library-python、acl-cpp-python、cppyy |
 | Rust | proconio、ac-library-rs、itertools、rand、num、petgraph、ndarray、nalgebra など。事前にビルドしてあるので、`Cargo.toml` の `[dependencies]` に書けばネットワークなしで使えます |
 
 ### ライセンス / License
