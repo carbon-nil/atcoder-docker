@@ -30,7 +30,7 @@ full を使うときはタグを `latest-full` にします。VS Code の Dev Co
 aclogin
 ```
 
-AtCoder は Cloudflare Turnstile を導入しているため、`acc login` / `oj login` ではログインできません。コンテナを作り直したら再度実行します。
+AtCoder は Cloudflare Turnstile を導入しているため、`acc login` / `oj login` ではログインできません。
 
 ## 使い方 / Usage
 
@@ -39,8 +39,7 @@ AtCoder は Cloudflare Turnstile を導入しているため、`acc login` / `oj
 ```bash
 # コンテスト: abc123/a, abc123/b, ... にテンプレートと入出力例 (test/) を置く
 acc new abc123
-# テンプレートを指定する場合
-acc new abc123 --template python
+acc new abc123 --template python # テンプレートを指定する場合
 
 # AtCoder Problems のバーチャルコンテスト: vc/<ID の先頭 8 文字>/a, b, ... に置く
 vc https://kenkoooo.com/atcoder/#/contest/show/<ID>
@@ -50,22 +49,22 @@ vc <ID> -t rust
 oj d https://atcoder.jp/contests/abc123/tasks/abc123_a
 ```
 
-`vc` はコンテストの問題へのリンクを `vc/<ID>/README.md` にまとめます。既にある問題ディレクトリは上書きせず、入出力例の無い問題 (インタラクティブ問題など) は警告を出して続けます。
+`vc` はコンテストの問題へのリンクを `vc/<ID>/README.md` にまとめます。既にある問題ディレクトリは上書きせず、入出力例の無い問題 (インタラクティブ問題など) は警告を出して続行します。
 
 ### ビルドと実行 / Build and Run
 
 問題のディレクトリ (`main.*` と `test/` がある場所) で `ojt` を実行すると、ジャッジと同じ条件でビルドし、入出力例で検査します (`oj t`)。
 
 ```bash
-# C++ の場合: main.cpp を g++ -std=gnu++23 -O2 -DATCODER -DONLINE_JUDGE ... でビルド
+# C++ の場合
 ojt
 
-# Python の場合: main.py を CPython 3.13 (-X int_max_str_digits=0) で実行
-ojt
-# PyPy で実行する場合
-ojt pypy
+# Python の場合
+ojt # Python 3.13
+ojt pypy # PyPy 3.11
 
-# Rust の場合: Cargo.toml があれば cargo build --release、なければ rustc -O main.rs
+# Rust の場合
+# Cargo.toml があれば cargo build --release、なければ rustc -O main.rs
 ojt
 ```
 
@@ -73,7 +72,9 @@ ojt
 
 ### 提出 / Submission
 
-検査が通ったら、`main.*` の中身をブラウザで AtCoder の提出欄に貼り付けて提出します。言語は `C++23 (GCC 15.2.0)`、`Python (CPython 3.13.7)` / `Python (PyPy 3.11-v7.3.20)`、`Rust (rustc 1.89.0)` を選びます。Cloudflare Turnstile のため、`acc submit` / `oj submit` による提出はできません。
+Cloudflare Turnstile のため、`acc submit` / `oj submit` による提出はできません。
+
+そのため問題なく実装が出来たら、`main.*` の中身をブラウザで AtCoder の提出欄に貼り付けて提出します。言語は `C++23 (GCC 15.2.0)`、`Python (CPython 3.13.7)` / `Python (PyPy 3.11-v7.3.20)`、`Rust (rustc 1.89.0)` を選びます。
 
 ### テンプレートの設定 / Setting Up Templates
 
@@ -82,6 +83,7 @@ ojt
 ```bash
 # テンプレートの置き場所
 acc config-dir
+
 # 例: C++ のテンプレートを作る
 mkdir -p "$(acc config-dir)/cpp"
 cat > "$(acc config-dir)/cpp/main.cpp" <<'EOF'
@@ -94,6 +96,7 @@ EOF
 cat > "$(acc config-dir)/cpp/template.json" <<'EOF'
 {"task": {"program": ["main.cpp"], "submit": "main.cpp"}}
 EOF
+
 # 既定のテンプレートにする
 acc config default-template cpp
 ```
@@ -128,9 +131,14 @@ AtCoder のジャッジが採用している外部ライブラリを入れてい
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-イメージに含まれるソフトウェアは、それぞれのライセンスに従います (GCC: GPL-3.0 with GCC Runtime Library Exception、ac-library: CC0-1.0、online-judge-tools: MIT、atcoder-cli: BSD-3-Clause、Boost: BSL-1.0、OR-Tools: Apache-2.0、LibTorch: BSD-3-Clause など)。
+イメージに含まれるソフトウェアは、それぞれのライセンスに従います。
+- GCC: GPL-3.0 with GCC Runtime Library Exception
+- ac-library: CC0-1.0
+- online-judge-tools: MIT
+- atcoder-cli: BSD-3-Clause
+- etc.
 
 ### 各種リンク / Links
 
-Discord: @carbon_nil
+Discord: @carbon_nil  
 X(Twitter): @carbon_nil
