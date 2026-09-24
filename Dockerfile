@@ -115,7 +115,6 @@ WORKDIR /opt
 # C++ Library
 RUN apt update && \
     apt install -y --no-install-recommends \
-        libabsl-dev \
         libboost-all-dev \
         libeigen3-dev \
         libgmp-dev \
@@ -127,6 +126,7 @@ RUN git clone --depth 1 https://github.com/arximboldi/immer.git && \
     cp -r range-v3/include/* /usr/local/include/ && \
     git clone --depth 1 https://github.com/martinus/unordered_dense.git && \
     cp unordered_dense/include/ankerl/unordered_dense.h /usr/local/include/
+# Abseil は AtCoder と同じ 20250512.1 だけを入れる (apt の 20220623 もあると、リンカが /usr/lib の古い方を先に拾う)
 RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
     cd abseil-cpp && mkdir build && cd build && \
     cmake .. -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
