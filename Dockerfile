@@ -63,11 +63,15 @@ RUN case "$TARGETARCH" in \
     pypy3 -m ensurepip
 
 # Rust
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.89.0 --profile minimal && \
-    /root/.cargo/bin/rustup component add rust-src && \
-    rm -rf /root/.rustup/toolchains/*/share/doc /root/.cargo/registry/cache
-ENV PATH="/root/.cargo/bin:${PATH}"
-COPY <<'EOF' /root/.cargo/config.toml
+# root 以外のユーザー (devcontainer の remoteUser) も使えるよう、公式の rust イメージと同じく /usr/local に置く
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH="/usr/local/cargo/bin:${PATH}"
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain 1.89.0 --profile minimal && \
+    rustup component add rust-src && \
+    rm -rf "$RUSTUP_HOME"/toolchains/*/share/doc "$CARGO_HOME"/registry/cache && \
+    chmod -R a+w "$RUSTUP_HOME" "$CARGO_HOME"
+COPY <<'EOF' /usr/local/cargo/config.toml
 [build]
 rustflags = ["--cfg", "atcoder"]
 EOF
@@ -80,39 +84,14 @@ RUN apt update && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 RUN pip3 install --no-cache-dir --break-system-packages online-judge-tools aclogin
+# acc の設定はユーザーごとなので、devcontainer の remoteUser (ubuntu) にも入れる
 RUN npm install -g atcoder-cli && \
     npm cache clean --force && \
-    acc config default-test-dirname-format test
+    acc config default-test-dirname-format test && \
+    runuser -u ubuntu -- acc config default-test-dirname-format test
 
 # Command
-COPY <<'EOF' /usr/local/bin/ojt
-#!/bin/bash
-python=python3.13
-if [ "${1:-}" = pypy ]; then
-    python=pypy3
-    shift
-fi
-
-if [ -f main.cpp ]; then
-    g++ -std=gnu++23 -O2 -Wall -Wextra -march=native -pthread \
-        -fconstexpr-depth=1024 -fconstexpr-loop-limit=524288 \
-        -fconstexpr-ops-limit=2097152 -ftrivial-auto-var-init=zero \
-        -U_FORTIFY_SOURCE -fno-stack-protector -fno-stack-clash-protection -fcf-protection=none -no-pie \
-        -DATCODER -DONLINE_JUDGE main.cpp -o a.out && oj t -c ./a.out "$@"
-elif [ -f main.py ]; then
-    oj t -c "$python -X int_max_str_digits=0 main.py" "$@"
-elif [ -f main.rs ]; then
-    if [ -f Cargo.toml ]; then
-        cargo build --release && oj t -c "./target/release/$(basename "$PWD")" "$@"
-    else
-        rustc -O main.rs -o a.out && oj t -c ./a.out "$@"
-    fi
-else
-    echo "Error: main.cpp, main.py, or main.rs not found." >&2
-    exit 1
-fi
-EOF
-RUN chmod +x /usr/local/bin/ojt
+COPY --chmod=755 bin/ojt /usr/local/bin/ojt
 
 # AtCoder Problems のバーチャルコンテストを acc new と同じ形 (テンプレート + test/) で vc/<ID>/<a,b,...>/ に展開する
 COPY --chmod=755 bin/vc /usr/local/bin/vc
@@ -220,7 +199,8 @@ RUN curl -fsS --remote-name-all \
         https://raw.githubusercontent.com/rust-lang-ja/atcoder-proposal/7a724cdf84202ce3bef84527676e2c398bca7b6e/Cargo.lock && \
     mkdir src && echo 'fn main() {}' > src/main.rs && \
     cargo build --release --locked && \
-    rm -rf /opt/rust-warmup
+    rm -rf /opt/rust-warmup && \
+    chmod -R a+w "$CARGO_HOME"
 
 # Workspace
 WORKDIR /workspace
