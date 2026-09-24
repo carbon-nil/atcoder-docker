@@ -142,6 +142,31 @@ RUN wget -O or-tools.tar.gz https://github.com/google/or-tools/archive/refs/tags
 # 依存ライブラリが man を prefix/man に入れるが、Ubuntu の /usr/local/man は symlink なので full にコピーできない。man は使わないので消す
 RUN rm -rf /opt/cxx/man
 
+# PyPI に PyPy 3.11 用の scipy、pandas、scikit-learn、shapely、bitarray、cppyy、acl-cpp-python の wheel はないので、
+# .github/workflows/pypy-wheels.yml で一度だけビルドして Release に置き、full イメージで使う
+FROM light AS pypy-wheels-build
+RUN apt update && \
+    apt install -y --no-install-recommends \
+        gfortran \
+        libopenblas-dev \
+        liblapack-dev \
+        pkg-config \
+        libgeos-dev && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+COPY python/pypy-requirements.txt /tmp/pypy-requirements.txt
+RUN grep -v '^cppyy' /tmp/pypy-requirements.txt > /tmp/pypy-requirements-no-cppyy.txt && \
+    pypy3 -m pip wheel --no-cache-dir -r /tmp/pypy-requirements-no-cppyy.txt -w /wheels --prefer-binary
+# cppyy-backend の隔離ビルドは古い cppyy-cling (6.30.0) をソースからビルドしようとして失敗するので、
+# CPython と同じく cppyy-cling 6.32.8 を先に入れ、backend と cppyy は隔離せずに g++-13 でビルドする
+RUN pypy3 -m pip install --no-cache-dir --break-system-packages --prefer-binary \
+        --find-links https://github.com/carbon-nil/atcoder-docker/releases/expanded_assets/cppyy-cling-6.32.8 \
+        setuptools wheel cppyy-cling==6.32.8 && \
+    CC=gcc-13 CXX=g++-13 pypy3 -m pip wheel --no-cache-dir --no-deps --no-build-isolation \
+        cppyy-backend==1.15.3 cppyy==3.5.0 -w /wheels
+
+FROM scratch AS pypy-wheels
+COPY --from=pypy-wheels-build /wheels /
+
 # Full version
 FROM light AS full
 ARG TARGETARCH
@@ -187,8 +212,10 @@ RUN case "$TARGETARCH" in \
     # amd64 の libtorch は古い protobuf の静的ライブラリを同梱していて、-lprotobuf が OR-Tools の protobuf ではなくこちらを拾う。
     # AtCoder と同じく消す
     rm -f /opt/libtorch/lib/libprotobuf.a /opt/libtorch/lib/libprotobuf-lite.a /opt/libtorch/lib/libprotoc.a
+# /opt/libtorch/lib は LD_LIBRARY_PATH に入れない (amd64 の libtorch の libtorch_python.so が Python の torch の import を壊す)。
+# C++ から使うときは -L/opt/libtorch/lib -Wl,-R/opt/libtorch/lib でリンクする
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/usr/include/eigen3:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
-    LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
+    LD_LIBRARY_PATH="/usr/local/lib"
 # ojt が外部ライブラリを AtCoder と同じ define とリンクのフラグでビルドするためのファイル。イメージに無いライブラリの -l は落とす
 COPY cxx/full-flags.txt /tmp/cxx/
 RUN mkdir -p /usr/local/share/ojt && \
@@ -202,22 +229,21 @@ RUN mkdir -p /usr/local/share/ojt && \
     rm -rf /tmp/cxx
 
 # Python Library
-RUN python3.13 -m pip install --no-cache-dir --break-system-packages \
-        numpy \
-        scipy \
-        pandas \
-        scikit-learn \
-        networkx \
-        PuLP \
-        bitarray \
-        more-itertools \
-        mpmath \
-        shapely \
-        sortedcontainers \
-        sympy \
-        z3-solver \
-        ac-library-python \
-        acl-cpp-python
+# AtCoder と同じバージョンに固定する (python/cpython-freeze.txt)。torch と numba も AtCoder と同じ入れ方にする
+# (numba は CUDA 部分を外してソースからビルドする)。arm64 の gmpy2 は wheel がないので、MPFR と MPC を入れてビルドする
+RUN apt update && \
+    apt install -y --no-install-recommends libmpfr-dev libmpc-dev && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+COPY python/cpython-freeze.txt /tmp/cpython-freeze.txt
+RUN python3.13 -m pip install --no-cache-dir --break-system-packages -r /tmp/cpython-freeze.txt && \
+    python3.13 -m pip install --no-cache-dir --break-system-packages torch==2.8.0+cpu --index-url https://download.pytorch.org/whl/cpu && \
+    wget -q -O numba.tar.gz https://files.pythonhosted.org/packages/1c/a0/e21f57604304aa03ebb8e098429222722ad99176a4f979d34af1d1ee80da/numba-0.61.2.tar.gz && \
+    mkdir numba && tar -C numba --strip-components=1 -xf numba.tar.gz && \
+    sed -i 's/ext_cuda_extras, //' numba/setup.py && rm -rf numba/numba/cuda && \
+    python3.13 -m pip install --no-cache-dir --break-system-packages ./numba && \
+    rm -rf numba numba.tar.gz /tmp/cpython-freeze.txt && \
+    python3.13 -c "import numba, torch, gmpy2, polars, lightgbm, ortools, sklearn, atcoder; \
+assert numba.njit(lambda n: n * 2)(21) == 42 and torch.ones(2).sum().item() == 2"
 # cppyy は AtCoder と同じ組み合わせに固定する。PyPI に arm64 の cppyy-cling wheel はないので、
 # cppyy-cling-wheel ステージで作って Release に置いたもの (.github/workflows/cppyy-wheel.yml) を使う。
 # 見つからなければ cppyy-cling-build ステージと同じ条件でソースからビルドする (40 分ほどかかる)

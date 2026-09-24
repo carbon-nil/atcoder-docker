@@ -1,0 +1,39 @@
+name: Build PyPy wheels
+# PyPI に PyPy 3.11 用の wheel がないライブラリを一度だけビルドして Release に置く。
+# full イメージはこれを使う。python/pypy-requirements.txt または PyPy のバージョンを変えたときに手動で実行する
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    env:
+      TAG: pypy-wheels-3.11-v7.3.20-${{ matrix.arch }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup docker buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build wheels
+        run: docker buildx build --target pypy-wheels --output type=local,dest=wheels .
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 ||
+            gh release create "$TAG" --title "$TAG (linux/$ARCH wheels)" \
+              --notes "PyPy 3.11-v7.3.20 wheels for linux/$ARCH, built by .github/workflows/pypy-wheels.yml for the full image."
+          gh release upload "$TAG" wheels/*.whl --clobber
