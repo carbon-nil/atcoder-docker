@@ -124,7 +124,7 @@ AtCoder のジャッジが採用している外部ライブラリを入れてい
 
 | 言語 | ライブラリ |
 |---|---|
-| C++ | Boost 1.83、GMP 6.3.0、Eigen 3.4.0、Abseil 20250512.1、Z3 4.8.12、immer、range-v3 0.12.0、unordered_dense、LightGBM 4.6.0、LibTorch 2.8.0 (CPU)、OR-Tools 9.14 |
+| C++ | Boost 1.88.0、GMP 6.3.0、Eigen 3.4.0、Abseil 20250512.1、Z3 4.15.2、immer 0.8.1、range-v3 0.12.0、unordered_dense 4.5.0、LightGBM 4.6.0、LibTorch 2.8.0 (CPU)、OR-Tools 9.14 |
 | Python (CPython) | numpy、scipy、pandas、scikit-learn、networkx、PuLP、bitarray、more-itertools、mpmath、shapely、sortedcontainers、sympy、z3-solver、ac-library-python、acl-cpp-python、cppyy |
 | Rust | AtCoder と同じ `Cargo.toml` / `Cargo.lock` ([rust-lang-ja/atcoder-proposal](https://github.com/rust-lang-ja/atcoder-proposal/tree/7a724cdf84202ce3bef84527676e2c398bca7b6e)) の crate 一式 (proconio、ac-library-rs、itertools、rand、num、petgraph、ndarray、nalgebra など)。事前にビルドしてあるので、`Cargo.toml` の `[dependencies]` に書けばネットワークなしで使えます |
 

@@ -2,6 +2,7 @@
 #include <bits/stdc++.h>
 #include <absl/container/flat_hash_map.h>
 #include <boost/multiprecision/cpp_int.hpp>
+#include <boost/json.hpp>
 #include <gmpxx.h>
 #include <LightGBM/c_api.h>
 #include <ortools/linear_solver/linear_solver.h>
@@ -35,5 +36,5 @@ int main() {
     for (int i = 0; i < 4; i++) omp += 1;
 
     std::cout << m[1] << ' ' << b << ' ' << g.get_str() << ' ' << x->solution_value() << ' ' << z.get_model().eval(a) << ' '
-              << torch::ones({2}).sum().item<float>() << ' ' << (LGBM_GetLastError() != nullptr) << ' ' << omp << '\n';
+              << torch::ones({2}).sum().item<float>() << ' ' << (LGBM_GetLastError() != nullptr) << ' ' << omp << ' ' << boost::json::parse("[1, 2, 3]").as_array().size() << '\n';
 }
