@@ -114,6 +114,11 @@ COPY --from=cppyy-cling-build /wheels /
 FROM gcc AS cxx-libs-build
 WORKDIR /tmp/cxx
 
+# OR-Tools (PDLP など) は Eigen3 の CMake ターゲットを使う。AtCoder と同じく apt の Eigen を入れておく
+RUN apt update && \
+    apt install -y --no-install-recommends libeigen3-dev && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
 RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
     cd abseil-cpp && \
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=20 \
