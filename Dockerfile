@@ -142,6 +142,17 @@ RUN wget -O or-tools.tar.gz https://github.com/google/or-tools/archive/refs/tags
 # 依存ライブラリが man を prefix/man に入れるが、Ubuntu の /usr/local/man は symlink なので full にコピーできない。man は使わないので消す
 RUN rm -rf /opt/cxx/man
 
+# AtCoder は Boost 1.88.0 をソースからビルドする。Ubuntu の 1.83 には charconv、contract、process、stacktrace_from_exception がない。
+# 独立してキャッシュできるよう別ステージにする。
+FROM gcc AS boost-build
+WORKDIR /tmp/boost
+RUN wget -q -O boost.tar.gz https://archives.boost.io/release/1.88.0/source/boost_1_88_0.tar.gz && \
+    mkdir src && tar -xzf boost.tar.gz -C src --strip-components=1 && \
+    cd src && \
+    ./bootstrap.sh --with-toolset=gcc --without-libraries=mpi,graph_parallel,python --prefix=/opt/boost && \
+    ./b2 toolset=gcc link=static threading=single variant=release cflags=-w cxxflags=-std=gnu++23 -j"$(nproc)" -d0 install && \
+    cd / && rm -rf /tmp/boost
+
 # PyPI に PyPy 3.11 用の scipy、pandas、scikit-learn、shapely、bitarray、cppyy、acl-cpp-python の wheel はないので、
 # .github/workflows/pypy-wheels.yml で一度だけビルドして Release に置き、full イメージで使う
 FROM light AS pypy-wheels-build
@@ -175,19 +186,31 @@ WORKDIR /opt
 # C++ Library
 RUN apt update && \
     apt install -y --no-install-recommends \
-        libboost-all-dev \
         libeigen3-dev \
-        libgmp-dev \
-        libz3-dev && \
+        libgmp-dev && \
     apt clean && rm -rf /var/lib/apt/lists/*
-RUN git clone --depth 1 https://github.com/arximboldi/immer.git && \
+RUN git clone --depth 1 -b v0.8.1 https://github.com/arximboldi/immer.git && \
     cp -r immer/immer /usr/local/include/ && \
     git clone --depth 1 -b 0.12.0 https://github.com/ericniebler/range-v3.git && \
     cp -r range-v3/include/* /usr/local/include/ && \
-    git clone --depth 1 https://github.com/martinus/unordered_dense.git && \
+    git clone --depth 1 -b v4.5.0 https://github.com/martinus/unordered_dense.git && \
     cp unordered_dense/include/ankerl/unordered_dense.h /usr/local/include/
+# AtCoder は Z3 4.15.2 を使う。ビルドせず公式リリースのバイナリを入れる
+RUN case "$TARGETARCH" in \
+        amd64) z3_arch=x64-glibc-2.39 ;; \
+        arm64) z3_arch=arm64-glibc-2.34 ;; \
+        *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac && \
+    wget -O z3.zip "https://github.com/Z3Prover/z3/releases/download/z3-4.15.2/z3-4.15.2-${z3_arch}.zip" && \
+    unzip -q z3.zip && \
+    cp z3-4.15.2-${z3_arch}/include/* /usr/local/include/ && \
+    cp z3-4.15.2-${z3_arch}/bin/libz3.so* /usr/local/lib/ && \
+    ldconfig && \
+    rm -rf z3.zip z3-4.15.2-${z3_arch}
 # 別ステージでビルドした Abseil と OR-Tools を依存ライブラリごと入れる
 COPY --from=cxx-libs-build /opt/cxx/ /usr/local/
+# 別ステージでビルドした Boost 1.88.0 を入れる (OR-Tools が同梱の Boost を入れていても上書きするよう、その後に置く)
+COPY --from=boost-build /opt/boost/ /usr/local/
 # リリースの tarball は submodule (eigen など) を同梱しているので、GitLab から取らずに済む
 # tarball の Python パッケージ lightgbm/ が CLI の出力先と衝突するので、AtCoder と同じくライブラリだけをビルドする。
 # AtCoder と同じく静的ライブラリにして /usr/local に入れる (#include <LightGBM/c_api.h> と -l_lightgbm で使う)

@@ -120,11 +120,11 @@ Rust で `Cargo.toml` を置く場合は、`template.json` の `cmd` でパッ�
 
 **full のみ (Heuristic Contest 用)**
 
-AtCoder のジャッジが採用している外部ライブラリを、AtCoder と同じバージョンで入れています (C++ は一部のバージョンが異なるため、表に記載しています)。
+AtCoder のジャッジが採用している外部ライブラリを、AtCoder と同じバージョンで入れています。
 
 | 言語 | ライブラリ |
 |---|---|
-| C++ | Boost 1.83、GMP 6.3.0、Eigen 3.4.0、Abseil 20250512.1、Z3 4.8.12、immer、range-v3 0.12.0、unordered_dense、LightGBM 4.6.0、LibTorch 2.8.0 (CPU)、OR-Tools 9.14 |
+| C++ | Boost、GMP、Eigen、Abseil、Z3、immer、range-v3、unordered_dense、LightGBM、LibTorch (CPU)、OR-Tools (SCIP、CBC、GLPK、HiGHS などのソルバを含む) |
 | Python (CPython) | numpy、scipy、pandas、polars、scikit-learn、lightgbm、torch (CPU)、numba、ortools、PuLP、z3-solver、networkx、rustworkx、sympy、gmpy2、shapely、sortedcontainers、more-itertools、bitarray、ac-library-python、acl-cpp-python、cppyy など |
 | Rust | proconio、ac-library-rs、itertools、rand、num、petgraph、ndarray、nalgebra など。事前にビルドしてあるので、`Cargo.toml` の `[dependencies]` に書けばネットワークなしで使えます |
 
