@@ -132,11 +132,13 @@ RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git &
     cmake .. -DCMAKE_CXX_STANDARD=20 -DCMAKE_INSTALL_PREFIX=/usr/local && \
     make -j$(nproc) install
 # リリースの tarball は submodule (eigen など) を同梱しているので、GitLab から取らずに済む
-# tarball の Python パッケージ lightgbm/ が CLI の出力先と衝突するので、AtCoder と同じくライブラリだけをビルドする
+# tarball の Python パッケージ lightgbm/ が CLI の出力先と衝突するので、AtCoder と同じくライブラリだけをビルドする。
+# AtCoder と同じく静的ライブラリにして /usr/local に入れる (#include <LightGBM/c_api.h> と -l_lightgbm で使う)
 RUN wget -O lightgbm.tar.gz https://github.com/microsoft/LightGBM/releases/download/v4.6.0/lightgbm-4.6.0.tar.gz && \
     mkdir LightGBM && tar -xf lightgbm.tar.gz -C LightGBM --strip-components=1 && rm lightgbm.tar.gz && \
     cd LightGBM && mkdir build && cd build && \
-    cmake -DBUILD_CLI=OFF .. && make -j$(nproc)
+    cmake -DBUILD_CLI=OFF -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. && make -j$(nproc) install && \
+    cd /opt && rm -rf LightGBM
 # arm64 向けの libtorch は配布されていないので、torch の wheel から include と lib を取り出す
 # (wheel の lib は rpath で ../../torch.libs を参照するので、/opt に展開してから libtorch に改名する)
 RUN case "$TARGETARCH" in \
@@ -162,6 +164,19 @@ RUN case "$TARGETARCH" in \
     rm -rf or-tools.tar.gz or-tools_*
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/usr/include/eigen3:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
     LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
+# ojt が外部ライブラリを AtCoder と同じ define とリンクのフラグでビルドするためのファイル。イメージに無いライブラリの -l は落とす
+COPY cxx/full-flags.txt cxx/full-smoke.cpp /tmp/cxx/
+RUN mkdir -p /usr/local/share/ojt && \
+    while read -r f; do \
+        case "$f" in -l*) \
+            echo 'int main() {}' | g++ -x c++ - -o /dev/null -L/opt/libtorch/lib "$f" 2> /dev/null || \
+                { echo "ojt: skip $f (not installed)"; continue; } ;; \
+        esac; \
+        echo "$f" >> /usr/local/share/ojt/cxx-flags; \
+    done < /tmp/cxx/full-flags.txt && \
+    mkdir -p /tmp/cxx/smoke/test && cd /tmp/cxx/smoke && cp ../full-smoke.cpp main.cpp && \
+    touch test/sample-1.in && echo '2 1180591620717411303424 15 10 4 2 1 4' > test/sample-1.out && \
+    ojt && cd / && rm -rf /tmp/cxx
 
 # Python Library
 RUN python3.13 -m pip install --no-cache-dir --break-system-packages \
