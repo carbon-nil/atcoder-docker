@@ -63,7 +63,7 @@ ojt # Python 3.13
 ojt pypy # PyPy 3.11
 
 # Rust の場合
-# Cargo.toml があれば cargo build --release、なければ rustc -O main.rs
+# Cargo.toml があれば cargo build --release、なければ rustc で edition 2024・--cfg atcoder を付けてビルド
 ojt
 ```
 
