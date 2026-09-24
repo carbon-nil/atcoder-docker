@@ -1,4 +1,4 @@
-// full のイメージのビルド時に ojt で動かし、外部ライブラリを AtCoder と同じフラグでビルド・実行できるかを確かめる
+// CI の test/full.sh から ojt で動かし、外部ライブラリを AtCoder と同じフラグでビルド・実行できるかを確かめる
 #include <bits/stdc++.h>
 #include <absl/container/flat_hash_map.h>
 #include <boost/multiprecision/cpp_int.hpp>

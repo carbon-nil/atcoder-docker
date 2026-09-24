@@ -180,7 +180,7 @@ RUN case "$TARGETARCH" in \
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/usr/include/eigen3:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
     LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
 # ojt が外部ライブラリを AtCoder と同じ define とリンクのフラグでビルドするためのファイル。イメージに無いライブラリの -l は落とす
-COPY cxx/full-flags.txt cxx/full-smoke.cpp /tmp/cxx/
+COPY cxx/full-flags.txt /tmp/cxx/
 RUN mkdir -p /usr/local/share/ojt && \
     while read -r f; do \
         case "$f" in -l*) \
@@ -189,9 +189,7 @@ RUN mkdir -p /usr/local/share/ojt && \
         esac; \
         echo "$f" >> /usr/local/share/ojt/cxx-flags; \
     done < /tmp/cxx/full-flags.txt && \
-    mkdir -p /tmp/cxx/smoke/test && cd /tmp/cxx/smoke && cp ../full-smoke.cpp main.cpp && \
-    touch test/sample-1.in && echo '2 1180591620717411303424 15 10 4 2 1 4' > test/sample-1.out && \
-    ojt && cd / && rm -rf /tmp/cxx
+    rm -rf /tmp/cxx
 
 # Python Library
 RUN python3.13 -m pip install --no-cache-dir --break-system-packages \
