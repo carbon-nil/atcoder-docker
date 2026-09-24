@@ -85,34 +85,7 @@ RUN npm install -g atcoder-cli && \
     acc config default-test-dirname-format test
 
 # Command
-COPY <<'EOF' /usr/local/bin/ojt
-#!/bin/bash
-python=python3.13
-if [ "${1:-}" = pypy ]; then
-    python=pypy3
-    shift
-fi
-
-if [ -f main.cpp ]; then
-    g++ -std=gnu++23 -O2 -Wall -Wextra -march=native -pthread \
-        -fconstexpr-depth=1024 -fconstexpr-loop-limit=524288 \
-        -fconstexpr-ops-limit=2097152 -ftrivial-auto-var-init=zero \
-        -U_FORTIFY_SOURCE -fno-stack-protector -fno-stack-clash-protection -fcf-protection=none -no-pie \
-        -DATCODER -DONLINE_JUDGE main.cpp -o a.out && oj t -c ./a.out "$@"
-elif [ -f main.py ]; then
-    oj t -c "$python -X int_max_str_digits=0 main.py" "$@"
-elif [ -f main.rs ]; then
-    if [ -f Cargo.toml ]; then
-        cargo build --release && oj t -c "./target/release/$(basename "$PWD")" "$@"
-    else
-        rustc -O main.rs -o a.out && oj t -c ./a.out "$@"
-    fi
-else
-    echo "Error: main.cpp, main.py, or main.rs not found." >&2
-    exit 1
-fi
-EOF
-RUN chmod +x /usr/local/bin/ojt
+COPY --chmod=755 bin/ojt /usr/local/bin/ojt
 
 # AtCoder Problems のバーチャルコンテストを acc new と同じ形 (テンプレート + test/) で vc/<ID>/<a,b,...>/ に展開する
 COPY --chmod=755 bin/vc /usr/local/bin/vc
