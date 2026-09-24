@@ -183,7 +183,10 @@ RUN case "$TARGETARCH" in \
             mv torch libtorch ;; \
         *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac && \
-    rm libtorch.zip
+    rm libtorch.zip && \
+    # amd64 の libtorch は古い protobuf の静的ライブラリを同梱していて、-lprotobuf が OR-Tools の protobuf ではなくこちらを拾う。
+    # AtCoder と同じく消す
+    rm -f /opt/libtorch/lib/libprotobuf.a /opt/libtorch/lib/libprotobuf-lite.a /opt/libtorch/lib/libprotoc.a
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/usr/include/eigen3:/opt/libtorch/include:/opt/libtorch/include/torch/csrc/api/include" \
     LD_LIBRARY_PATH="/usr/local/lib:/opt/libtorch/lib"
 # ojt が外部ライブラリを AtCoder と同じ define とリンクのフラグでビルドするためのファイル。イメージに無いライブラリの -l は落とす
