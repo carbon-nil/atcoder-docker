@@ -77,6 +77,8 @@ Cloudflare Turnstile のため、`acc submit` / `oj submit` による提出は�
 
 そのため、問題なく実装できたら、`main.*` の中身をブラウザで AtCoder の提出欄に貼り付けて提出します。言語は `C++23 (GCC 15.2.0)`、`Python (CPython 3.13.7)` / `Python (PyPy 3.11-v7.3.20)`、`Rust (rustc 1.89.0)` を選びます。
 
+自分のライブラリを使う場合は、`CPLIB` に `cpp/`・`python/`・`rust/` を含むライブラリのディレクトリを設定します (例: devcontainer.json の `"containerEnv": {"CPLIB": "/workspace/lib"}`)。問題ディレクトリで `bundle` を実行すると `submit.*` ができるので、`main.*` の代わりにその中身を貼り付けます。
+
 ### テンプレートの設定 / Setting Up Templates
 
 `acc new` と `vc` は、acc の設定ディレクトリにあるテンプレートを問題ごとにコピーします。
@@ -116,7 +118,7 @@ Rust で `Cargo.toml` を置く場合は、`template.json` の `cmd` でパッ�
 **light / full 共通**
 
 - C++: [AtCoder Library (ac-library)](https://github.com/atcoder/ac-library) v1.6
-- ツール: [online-judge-tools](https://github.com/online-judge-tools/oj) (`oj`)、[atcoder-cli](https://github.com/Tatamo/atcoder-cli) (`acc`)、[aclogin](https://github.com/key-moon/aclogin)、`ojt`、`vc`
+- ツール: [online-judge-tools](https://github.com/online-judge-tools/oj) (`oj`)、[atcoder-cli](https://github.com/Tatamo/atcoder-cli) (`acc`)、[aclogin](https://github.com/key-moon/aclogin)、`ojt`、`vc`、`bundle`
 
 **full のみ (Heuristic Contest 用)**
 

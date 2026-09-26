@@ -35,3 +35,5 @@ ojt
 ojt pypy
 cd "$tmp/rust"
 ojt
+
+python3 /test/bundle.py

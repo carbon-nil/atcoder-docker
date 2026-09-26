@@ -98,6 +98,9 @@ COPY --chmod=755 bin/ojt /usr/local/bin/ojt
 # AtCoder Problems のバーチャルコンテストを acc new と同じ形 (テンプレート + test/) で vc/<ID>/<a,b,...>/ に展開する
 COPY --chmod=755 bin/vc /usr/local/bin/vc
 
+# 問題ディレクトリの main.* を、$CPLIB のライブラリのうち使っている部分ごと 1 ファイル (submit.*) に展開する
+COPY --chmod=755 bin/bundle /usr/local/bin/bundle
+
 # cppyy-cling wheel (linux/arm64 用。.github/workflows/cppyy-wheel.yml が Release に置く)
 # pip の隔離ビルドは最新の cmake (4 系) を入れて設定に失敗するので、隔離せずにシステムの cmake (3.28) を使う
 # 同梱の LLVM は GCC 14.3 以降だと C++20 でコンパイルできない (root-project/root#18939) ので、g++-13 でビルドする
