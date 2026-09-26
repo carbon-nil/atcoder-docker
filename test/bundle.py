@@ -10,6 +10,8 @@ import tempfile
 BUNDLE = Path(__file__).resolve().parents[1] / "bin/bundle"
 if not BUNDLE.is_file():
     BUNDLE = Path("/usr/local/bin/bundle")
+# bin/ に __pycache__ を作らない
+sys.dont_write_bytecode = True
 loader = importlib.machinery.SourceFileLoader("bundle", str(BUNDLE))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 assert spec is not None
