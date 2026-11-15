@@ -15,6 +15,21 @@ docker pull ghcr.io/carbon-nil/atcoder-docker:latest-light
 docker pull ghcr.io/carbon-nil/atcoder-docker:latest-full
 ```
 
+使わない言語を外したい場合は、`LANGS` に入れる言語 (`cpp`、`python`、`rust` のカンマ区切り) を指定して手元でビルドしてください。
+
+- 既定値: すべての言語
+- `python`: CPython と PyPy の両方
+- 常に入るもの: GCC、システムの Python 3.12 (oj、aclogin)、Node.js (acc)
+- `cpp` を外したとき: ac-library と full の C++ 外部ライブラリが入らない (C++ のビルド自体はできる)
+
+```bash
+git clone https://github.com/carbon-nil/atcoder-docker.git && cd atcoder-docker
+# 例: C++ と Python だけ (Rust を入れない)
+docker build --target light --build-arg LANGS=cpp,python -t atcoder-docker:light .
+docker compose build --build-arg LANGS=cpp,python # docker-compose.yml を使う場合
+docker buildx build --call=outline . # 指定できる引数と既定値の一覧
+```
+
 3. Docker コンテナを起動する  
 full を使うときはタグを `latest-full` にします。VS Code の Dev Containers で使う場合は、`"remoteUser": "ubuntu"` を指定すると、作ったファイルがホストのユーザーの所有になります (root のままだとホストでは root の所有になります)。
 

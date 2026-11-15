@@ -1,5 +1,5 @@
 #!/bin/bash
-# C++23、Python、PyPy、Rust 2024 の単一ファイルを ojt でビルド・実行できるかを確かめる
+# C++23、Python、PyPy、Rust 2024 のうちイメージに入っている言語の単一ファイルを ojt でビルド・実行できるかを確かめる
 set -eu
 
 tmp=$(mktemp -d)
@@ -28,10 +28,15 @@ fn main() {
 }
 EOF
 
+# C++ は GCC があればビルドできる。Python と Rust は LANGS で外したときに入っていないので飛ばす
 cd "$tmp/cpp"
 ojt
-cd "$tmp/python"
-ojt
-ojt pypy
-cd "$tmp/rust"
-ojt
+if command -v python3.13 > /dev/null; then
+    cd "$tmp/python"
+    ojt
+    ojt pypy
+fi
+if command -v rustc > /dev/null; then
+    cd "$tmp/rust"
+    ojt
+fi
