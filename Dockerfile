@@ -1,3 +1,8 @@
+# GCC、システムの Python 3.12 (oj, aclogin)、Node.js (acc) は、どの言語を選んでも入る
+# docker buildx build --call=outline . は、引数名で始まる直前のコメントを説明として表示する
+# LANGS 入れる言語 (cpp, python, rust のカンマ区切り。例: cpp,python)
+ARG LANGS=cpp,python,rust
+
 FROM ubuntu:24.04 AS base-toolchain
 
 ENV TZ=Asia/Tokyo \
@@ -29,9 +34,15 @@ ENV CXX=g++ CC=gcc
 FROM gcc AS light
 
 ARG TARGETARCH
+ARG LANGS
+RUN case "$LANGS" in *[!a-z,]*) echo "LANGS must be comma-separated without spaces: $LANGS" >&2; exit 1 ;; esac && \
+    for l in $(echo "$LANGS" | tr , ' '); do \
+        case "$l" in cpp|python|rust) ;; *) echo "Unknown language in LANGS: $l" >&2; exit 1 ;; esac; \
+    done
 
 # C++
-RUN git clone --depth 1 -b v1.6 https://github.com/atcoder/ac-library.git /lib/ac-library
+RUN case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    git clone --depth 1 -b v1.6 https://github.com/atcoder/ac-library.git /lib/ac-library
 ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library"
 
 # Python
@@ -47,12 +58,14 @@ RUN apt update && \
 ENV PYTHONUNBUFFERED=1
 COPY --from=ghcr.io/astral-sh/uv:0.8.22 /uv /usr/local/bin/uv
 ENV UV_PYTHON_INSTALL_DIR=/opt/python
-RUN uv python install 3.13.7 && \
+RUN case ",$LANGS," in *,python,*) ;; *) exit 0 ;; esac && \
+    uv python install 3.13.7 && \
     ln -s "$(uv python find --managed-python 3.13.7)" /usr/local/bin/python3.13 && \
     python3.13 -m pip --version
 
 # PyPy
-RUN case "$TARGETARCH" in \
+RUN case ",$LANGS," in *,python,*) ;; *) exit 0 ;; esac && \
+    case "$TARGETARCH" in \
         amd64) pypy_arch=linux64 ;; \
         arm64) pypy_arch=aarch64 ;; \
         *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
@@ -69,7 +82,8 @@ RUN case "$TARGETARCH" in \
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH="/usr/local/cargo/bin:${PATH}"
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain 1.89.0 --profile minimal && \
+RUN case ",$LANGS," in *,rust,*) ;; *) exit 0 ;; esac && \
+    curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain 1.89.0 --profile minimal && \
     rustup component add rust-src && \
     rm -rf "$RUSTUP_HOME"/toolchains/*/share/doc "$CARGO_HOME"/registry/cache && \
     chmod -R a+w "$RUSTUP_HOME" "$CARGO_HOME"
@@ -112,21 +126,25 @@ COPY --from=cppyy-cling-build /wheels /
 # arm64 の配布済み OR-Tools は AlmaLinux ビルドで libstdc++ のシンボルを再公開し、LibTorch と併用すると落ちる。
 # AtCoder と同じくソースからビルドし、full の残りとは独立してキャッシュできるよう別ステージにする。
 FROM gcc AS cxx-libs-build
+ARG LANGS
 WORKDIR /tmp/cxx
 
 # OR-Tools (PDLP など) は Eigen3 の CMake ターゲットを使う。AtCoder と同じく apt の Eigen を入れておく
-RUN apt update && \
+RUN case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    apt update && \
     apt install -y --no-install-recommends libeigen3-dev && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
+RUN case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    git clone --depth 1 -b 20250512.1 https://github.com/abseil/abseil-cpp.git && \
     cd abseil-cpp && \
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=20 \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DABSL_ENABLE_INSTALL=ON \
         -DABSL_PROPAGATE_CXX_STD=ON -DCMAKE_INSTALL_PREFIX=/opt/cxx && \
     cmake --build build -j"$(nproc)" --target install && \
     cd /tmp/cxx && rm -rf /tmp/cxx/*
-RUN wget -O or-tools.tar.gz https://github.com/google/or-tools/archive/refs/tags/v9.14.tar.gz && \
+RUN case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    wget -O or-tools.tar.gz https://github.com/google/or-tools/archive/refs/tags/v9.14.tar.gz && \
     mkdir or-tools && tar -xf or-tools.tar.gz -C or-tools --strip-components=1 && \
     cd or-tools && \
     cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_CXX=ON \
@@ -140,13 +158,18 @@ RUN wget -O or-tools.tar.gz https://github.com/google/or-tools/archive/refs/tags
     cmake --build build -j"$(nproc)" --target install && \
     cd /tmp/cxx && rm -rf /tmp/cxx/*
 # 依存ライブラリが man を prefix/man に入れるが、Ubuntu の /usr/local/man は symlink なので full にコピーできない。man は使わないので消す
-RUN rm -rf /opt/cxx/man
+# C++ を入れないときも full が COPY できるよう、空のディレクトリを残す
+RUN rm -rf /opt/cxx/man && mkdir -p /opt/cxx
 
 # AtCoder は Boost 1.88.0 をソースからビルドする。Ubuntu の 1.83 には charconv、contract、process、stacktrace_from_exception がない。
 # 独立してキャッシュできるよう別ステージにする。
 FROM gcc AS boost-build
+ARG LANGS
 WORKDIR /tmp/boost
-RUN wget -q -O boost.tar.gz https://archives.boost.io/release/1.88.0/source/boost_1_88_0.tar.gz && \
+# C++ を入れないときは、full が COPY できるよう空の /opt/boost だけを作る
+RUN mkdir -p /opt/boost && \
+    case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    wget -q -O boost.tar.gz https://archives.boost.io/release/1.88.0/source/boost_1_88_0.tar.gz && \
     mkdir src && tar -xzf boost.tar.gz -C src --strip-components=1 && \
     cd src && \
     ./bootstrap.sh --with-toolset=gcc --without-libraries=mpi,graph_parallel,python --prefix=/opt/boost && \
@@ -185,22 +208,26 @@ COPY --from=pypy-wheels-build /wheels /
 # Full version
 FROM light AS full
 ARG TARGETARCH
+ARG LANGS
 WORKDIR /opt
 
 # C++ Library
-RUN apt update && \
+RUN case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    apt update && \
     apt install -y --no-install-recommends \
         libeigen3-dev \
         libgmp-dev && \
     apt clean && rm -rf /var/lib/apt/lists/*
-RUN git clone --depth 1 -b v0.8.1 https://github.com/arximboldi/immer.git && \
+RUN case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    git clone --depth 1 -b v0.8.1 https://github.com/arximboldi/immer.git && \
     cp -r immer/immer /usr/local/include/ && \
     git clone --depth 1 -b 0.12.0 https://github.com/ericniebler/range-v3.git && \
     cp -r range-v3/include/* /usr/local/include/ && \
     git clone --depth 1 -b v4.5.0 https://github.com/martinus/unordered_dense.git && \
     cp unordered_dense/include/ankerl/unordered_dense.h /usr/local/include/
 # AtCoder は Z3 4.15.2 を使う。ビルドせず公式リリースのバイナリを入れる
-RUN case "$TARGETARCH" in \
+RUN case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    case "$TARGETARCH" in \
         amd64) z3_arch=x64-glibc-2.39 ;; \
         arm64) z3_arch=arm64-glibc-2.34 ;; \
         *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
@@ -218,14 +245,16 @@ COPY --from=boost-build /opt/boost/ /usr/local/
 # リリースの tarball は submodule (eigen など) を同梱しているので、GitLab から取らずに済む
 # tarball の Python パッケージ lightgbm/ が CLI の出力先と衝突するので、AtCoder と同じくライブラリだけをビルドする。
 # AtCoder と同じく静的ライブラリにして /usr/local に入れる (#include <LightGBM/c_api.h> と -l_lightgbm で使う)
-RUN wget -O lightgbm.tar.gz https://github.com/microsoft/LightGBM/releases/download/v4.6.0/lightgbm-4.6.0.tar.gz && \
+RUN case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    wget -O lightgbm.tar.gz https://github.com/microsoft/LightGBM/releases/download/v4.6.0/lightgbm-4.6.0.tar.gz && \
     mkdir LightGBM && tar -xf lightgbm.tar.gz -C LightGBM --strip-components=1 && rm lightgbm.tar.gz && \
     cd LightGBM && mkdir build && cd build && \
     cmake -DBUILD_CLI=OFF -DBUILD_STATIC_LIB=ON -DCMAKE_INSTALL_PREFIX=/usr/local .. && make -j$(nproc) install && \
     cd /opt && rm -rf LightGBM
 # arm64 向けの libtorch は配布されていないので、torch の wheel から include と lib を取り出す
 # (wheel の lib は rpath で ../../torch.libs を参照するので、/opt に展開してから libtorch に改名する)
-RUN case "$TARGETARCH" in \
+RUN case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    case "$TARGETARCH" in \
         amd64) \
             wget -O libtorch.zip https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.8.0%2Bcpu.zip && \
             unzip -q libtorch.zip ;; \
@@ -245,7 +274,8 @@ ENV CPLUS_INCLUDE_PATH="/usr/local/include:/lib/ac-library:/usr/include/eigen3:/
     LD_LIBRARY_PATH="/usr/local/lib"
 # ojt が外部ライブラリを AtCoder と同じ define とリンクのフラグでビルドするためのファイル。イメージに無いライブラリの -l は落とす
 COPY cxx/full-flags.txt /tmp/cxx/
-RUN mkdir -p /usr/local/share/ojt && \
+RUN case ",$LANGS," in *,cpp,*) ;; *) exit 0 ;; esac && \
+    mkdir -p /usr/local/share/ojt && \
     while read -r f; do \
         case "$f" in -l*) \
             echo 'int main() {}' | g++ -x c++ - -o /dev/null -L/opt/libtorch/lib "$f" 2> /dev/null || \
@@ -258,12 +288,14 @@ RUN mkdir -p /usr/local/share/ojt && \
 # Python Library
 # AtCoder と同じバージョンに固定する (python/cpython-freeze.txt)。torch と numba も AtCoder と同じ入れ方にする
 # (numba は CUDA 部分を外してソースからビルドする)。arm64 の gmpy2 は wheel がないので、MPFR と MPC を入れてビルドする
-RUN apt update && \
+RUN case ",$LANGS," in *,python,*) ;; *) exit 0 ;; esac && \
+    apt update && \
     apt install -y --no-install-recommends libmpfr-dev libmpc-dev && \
     apt clean && rm -rf /var/lib/apt/lists/*
 COPY python/cpython-freeze.txt /tmp/cpython-freeze.txt
 # acl-cpp-python は pypy-wheels-build と同じく -march=native を外して先に入れる
-RUN CXXFLAGS='-O3 -DNDEBUG' python3.13 -m pip install --no-cache-dir --break-system-packages -C cmake.build-type=None \
+RUN case ",$LANGS," in *,python,*) ;; *) exit 0 ;; esac && \
+    CXXFLAGS='-O3 -DNDEBUG' python3.13 -m pip install --no-cache-dir --break-system-packages -C cmake.build-type=None \
         "$(grep '^acl-cpp-python' /tmp/cpython-freeze.txt)" && \
     python3.13 -m pip install --no-cache-dir --break-system-packages -r /tmp/cpython-freeze.txt && \
     python3.13 -m pip install --no-cache-dir --break-system-packages torch==2.8.0+cpu --index-url https://download.pytorch.org/whl/cpu && \
@@ -277,7 +309,8 @@ assert numba.njit(lambda n: n * 2)(21) == 42 and torch.ones(2).sum().item() == 2
 # cppyy は AtCoder と同じ組み合わせに固定する。PyPI に arm64 の cppyy-cling wheel はないので、
 # cppyy-cling-wheel ステージで作って Release に置いたもの (.github/workflows/cppyy-wheel.yml) を使う。
 # 見つからなければ cppyy-cling-build ステージと同じ条件でソースからビルドする (40 分ほどかかる)
-RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools wheel && \
+RUN case ",$LANGS," in *,python,*) ;; *) exit 0 ;; esac && \
+    python3.13 -m pip install --no-cache-dir --break-system-packages setuptools wheel && \
     for p in cppyy-cling==6.32.8 cppyy-backend==1.15.3 cppyy==3.5.0; do \
         CC=gcc-13 CXX=g++-13 python3.13 -m pip install --no-cache-dir --break-system-packages --no-build-isolation \
             --prefer-binary --find-links https://github.com/carbon-nil/atcoder-docker/releases/expanded_assets/cppyy-cling-6.32.8 \
@@ -289,7 +322,8 @@ RUN python3.13 -m pip install --no-cache-dir --break-system-packages setuptools 
 # AtCoder と同じライブラリ (python/pypy-requirements.txt) を、pypy-wheels.yml で Release に置いた wheel から入れる。
 # wheel は scipy などをシステムの OpenBLAS / GEOS にリンクしているので、その実行時ライブラリも入れる
 # (Release に wheel が無いときはソースからビルドできるよう、ビルド用のパッケージにしている)
-RUN apt update && \
+RUN case ",$LANGS," in *,python,*) ;; *) exit 0 ;; esac && \
+    apt update && \
     apt install -y --no-install-recommends \
         gfortran \
         libopenblas-dev \
@@ -298,7 +332,8 @@ RUN apt update && \
         libgeos-dev && \
     apt clean && rm -rf /var/lib/apt/lists/*
 COPY python/pypy-requirements.txt /tmp/pypy-requirements.txt
-RUN pypy3 -m pip install --no-cache-dir --break-system-packages --prefer-binary \
+RUN case ",$LANGS," in *,python,*) ;; *) exit 0 ;; esac && \
+    pypy3 -m pip install --no-cache-dir --break-system-packages --prefer-binary \
         --find-links https://github.com/carbon-nil/atcoder-docker/releases/expanded_assets/pypy-wheels-3.11-v7.3.20-${TARGETARCH} \
         --find-links https://github.com/carbon-nil/atcoder-docker/releases/expanded_assets/cppyy-cling-6.32.8 \
         -r /tmp/pypy-requirements.txt && \
@@ -309,7 +344,8 @@ assert numpy.arange(4).sum() == 6; cppyy.cppdef('int one() { return 1; }'); asse
 # Rust Library
 # AtCoder と同じ Cargo.toml / Cargo.lock (rust-lang-ja/atcoder-proposal、AtCoder のインストールスクリプトと同じコミット) で依存をビルドしておく
 WORKDIR /opt/rust-warmup
-RUN curl -fsS --remote-name-all \
+RUN case ",$LANGS," in *,rust,*) ;; *) exit 0 ;; esac && \
+    curl -fsS --remote-name-all \
         https://raw.githubusercontent.com/rust-lang-ja/atcoder-proposal/7a724cdf84202ce3bef84527676e2c398bca7b6e/Cargo.toml \
         https://raw.githubusercontent.com/rust-lang-ja/atcoder-proposal/7a724cdf84202ce3bef84527676e2c398bca7b6e/Cargo.lock && \
     mkdir src && echo 'fn main() {}' > src/main.rs && \
